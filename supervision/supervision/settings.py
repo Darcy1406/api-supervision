@@ -37,9 +37,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'data.apps.DataConfig',
+    'users.apps.UsersConfig',
+    'corsheaders',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # doit être en haut
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -48,6 +53,15 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# Pour autoriser le frontend React
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+RECAPTCHA_SECRET_KEY = "6LeVF8srAAAAAEQBQ-2NnWOrU_rCgGp7RrESw7FF"
 
 ROOT_URLCONF = 'supervision.urls'
 
@@ -82,7 +96,7 @@ WSGI_APPLICATION = 'supervision.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'django',
+        'NAME': 'supervision',
         'USER': 'postgres',
         'PASSWORD': 'admin',
         'HOST': 'localhost',
