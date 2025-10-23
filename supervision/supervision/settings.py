@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'data.apps.DataConfig',
     'users.apps.UsersConfig',
+    'evenement.apps.EvenementConfig',
     'corsheaders',
     'rest_framework',
 ]
@@ -61,7 +62,35 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
-RECAPTCHA_SECRET_KEY = "6LeVF8srAAAAAEQBQ-2NnWOrU_rCgGp7RrESw7FF"
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+]
+
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = False
+
+# Sessions
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+SESSION_COOKIE_NAME = "sessionid"
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SECURE = False
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 14   # 2 semaines
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.BasicAuthentication",
+    ],
+    # "DEFAULT_PERMISSION_CLASSES": [
+    #     "rest_framework.permissions.IsAuthenticatedOrReadOnly",
+    # ],
+}
+
+# RECAPTCHA_SECRET_KEY = "6LeVF8srAAAAAEQBQ-2NnWOrU_rCgGp7RrESw7FF"
 
 ROOT_URLCONF = 'supervision.urls'
 
@@ -122,6 +151,9 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
+
+AUTH_USER_MODEL = "users.Authentification"
+
 
 
 # Internationalization
