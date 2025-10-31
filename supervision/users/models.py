@@ -8,12 +8,11 @@ class Zone(models.Model):
 
 
 class Utilisateur(models.Model):
-    im = models.CharField(max_length=10)
     nom = models.CharField(max_length=80)
     prenom = models.CharField(max_length=128)
     email = models.CharField(max_length=100)
-    fonction = models.CharField(max_length=60)
-    zone = models.ForeignKey(Zone, on_delete=models.CASCADE, related_name='zones')
+    fonction = models.CharField(max_length=30, null=True)
+    zone = models.ForeignKey(Zone, on_delete=models.CASCADE, related_name='zones' , null=True)
     
 
 class Poste_comptable(models.Model):
@@ -23,10 +22,6 @@ class Poste_comptable(models.Model):
     responsable = models.CharField(max_length=50, null=True)
     poste = models.CharField(max_length=50, null=True)
     lieu = models.CharField(max_length=50)
-    # prenom_poste_comptable = models.CharField(max_length=80)
-    # type = models.CharField(max_length=10)
-    # categorie = models.CharField(max_length=20)
-    # comptable = models.CharField(max_length=100)
     comptable_rattachement = models.ForeignKey("self", on_delete=models.SET_NULL, related_name="poste_rattaches", null=True)
     utilisateur = models.ForeignKey(Utilisateur, on_delete=models.CASCADE, related_name='poste_comptables', null=True)
 
@@ -48,6 +43,7 @@ class AuthentificationManager(BaseUserManager):
 
 class Authentification(AbstractBaseUser, PermissionsMixin):
     identifiant = models.CharField(max_length=20, unique=True)
+    date_joined = models.DateTimeField(auto_now_add=True, null=True)
     utilisateur = models.OneToOneField(Utilisateur, on_delete=models.CASCADE, null=True, blank=True, related_name="authentification")
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
@@ -60,10 +56,3 @@ class Authentification(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.identifiant
-
-
-
-# class Authentification(models.Model):
-#     identifiant = models.CharField(max_length=20)
-#     password = models.CharField(max_length=15)
-#     utilisateur = models.OneToOneField(Utilisateur, on_delete=models.CASCADE, null=True)

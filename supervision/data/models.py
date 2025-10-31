@@ -14,7 +14,7 @@ class Document(models.Model):
     exercice = models.CharField(max_length=10, null=True)
     mois = models.CharField(max_length=2, null=True)
     nom_fichier = models.CharField(max_length=255)
-    type = models.CharField(max_length=100, null=True, blank=True)
+    type = models.CharField(max_length=10, null=True, blank=True)
     contenu = models.BinaryField()
     date_arrivee = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -39,23 +39,14 @@ class Compte(models.Model):
     type = models.CharField(max_length=25)
     created_at = models.DateField(auto_now_add=True)
     updated_at = models.DateField(auto_now=True)
-    # compte_regroupement = models.ForeignKey("self", on_delete=models.CASCADE, related_name="compte_regoupes", null=True)
     proprietaire = models.ForeignKey(Proprietaire, on_delete=models.CASCADE, related_name="comptes" , null=True)
 
 
 class Transcription(models.Model):
-    # exercice = models.IntegerField()
-    # mois = models.IntegerField()
-    # date = models.DateField()
-    # piece = models.CharField(max_length=40)
     compte = models.ForeignKey(Compte, on_delete=models.CASCADE, related_name='transcriptions',null=True)
     nature = models.CharField(max_length=255)
-    montant = models.IntegerField()
+    montant = models.FloatField()
     document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='documents')
-
-
-    # def __str__(self) -> str:
-    #     return self.nom_fichier
 
 
 class PieceCompte(models.Model):

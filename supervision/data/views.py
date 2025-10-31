@@ -18,13 +18,14 @@ def index(request):
     return HttpResponse(fichiers[0].contenu)
 
 
-class CompteView(APIView):
-    def get(self, request):
-        comptes = Compte.objects.all().values('numero')
-        return JsonResponse(list(comptes), safe=False)
+# class CompteView(APIView):
+#     def get(self, request):
+#         comptes = Compte.objects.all().values('numero')
+#         return JsonResponse(list(comptes), safe=False)
 
 
 # @api_view(['POST'])
+# Piece
 class PieceView(APIView):
     def post(self, request):
         
@@ -32,20 +33,21 @@ class PieceView(APIView):
 
         piece_object = Piece(
             nom_piece = request.data.get("nom_piece"),
-            periode = request.data.get("periode")
+            periode = request.data.get("periode"),
         )
 
         piece_object.save()
 
-        for i in poste_comptable:
-            if poste_comptable[i]:
-                poste_comptable_get = Poste_comptable.objects.get(type=i)
-                piece_object.poste_comptable.add(poste_comptable_get)
+        for poste in poste_comptable:
+            poste_comptable_filter = Poste_comptable.objects.filter(poste=poste)
+            piece_object.poste_comptable.add(*poste_comptable_filter)
 
-        return JsonResponse({"succes": "Piece ajoutee avec succes"})
+        return JsonResponse({"succes": "La pièce a été ajoutée avec succès"})
 
 
     def put(self, request):
+
+        poste_comptable = request.data.get('poste_comptable')
 
         piece = Piece.objects.get(pk=request.data.get("id"))
         piece.nom_piece = request.data.get("nom_piece")
@@ -53,16 +55,24 @@ class PieceView(APIView):
 
         piece.save()
 
-        return JsonResponse({"message": "Modification effectuee avec succes"})
+        piece.poste_comptable.clear()
+        
+        for poste in poste_comptable:
+            poste_comptable_filter = Poste_comptable.objects.filter(poste=poste)
+            piece.poste_comptable.add(*poste_comptable_filter)
+
+        return JsonResponse({"succes": "La pièce a été modifiée avec succès"})
 
 
     def get(self, request):
-        pieces = Piece.objects.all()
+        pieces = Piece.objects.all().order_by('nom_piece')
         pieces_serialize = serializers.serialize('json', pieces)
         return JsonResponse(json.loads(pieces_serialize), safe=False)
     
 
+# Liaison piece - compte
 class PieceCompteView(APIView):
+
     def post(self, request):
         if request.data.get("action") == 'ajouter':
             nature = request.data.get('nature')
@@ -75,7 +85,7 @@ class PieceCompteView(APIView):
 
             piece_et_compte.save()
 
-            return JsonResponse({'message': 'La liaison entre le compte et la pièce a ete établie avec succès'})
+            return JsonResponse({'succes': 'La liaison entre le compte et la pièce a ete établie avec succès'})
         
         elif request.data.get("action") == "filtrer_liaison":
             # piece_et_compte = PieceCompte.objects.filter(nature__icontains=request.data.get('nature')).select_related('compte').distinct().values('compte__numero')
@@ -107,11 +117,11 @@ class PieceCompteView(APIView):
             'nature',
             'created_at',
             'updated_at',
-        )
+        ).order_by('piece__nom_piece')
         return JsonResponse(list(piece_compte), safe=False)
         
 
-
+# Document
 class DocumentView(APIView):
     def post(self, request):
 
@@ -161,13 +171,27 @@ class DocumentView(APIView):
             # Conversion JSON pour renvoyer à React
             return JsonResponse(list(document), safe=False)
     
+        elif request.data.get('action') == 'listes_documents_auditeur':
+            document = Document.objects.all().select_related('poste_comptable', 'piece').filter(poste_comptable__utilisateur_id=request.data.get('utilisateur')).values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee')
+            return JsonResponse(list(document), safe=False)
+            
+        elif request.data.get('action') == 'listes_documents_chef_unite':
+            document = Document.objects.all().select_related('poste_comptable', 'piece').filter(poste_comptable__utilisateur__zone__nom_zone=request.data.get('zone')).values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee')
+            return JsonResponse(list(document), safe=False)
+        
+        elif request.data.get('action') == 'listes_documents_directeur':
+            document = Document.objects.all().values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee')
+            return JsonResponse(list(document), safe=False)
+
+
     def get(self, request):
-        document = Document.objects.all().select_related('poste_comptable', 'piece').values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee')
-        return JsonResponse(list(document), safe=False)
-    
+            document = Document.objects.all().select_related('poste_comptable', 'piece').values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee')
+            return JsonResponse(list(document), safe=False)
+
 
 class TranscriptionView(APIView):
     def post(self, request):
+        
         if request.data.get('action') == 'ajouter_transcription':
             natures = request.data.get("natures")
 
@@ -177,30 +201,32 @@ class TranscriptionView(APIView):
                 try:
                     for i in objet:
 
-                        if objet[i] != "":
-                            montant =  int(objet[i])
-                        else:
-                            montant = 0
+                        if objet[i] != 0:
+                            montant =  float(objet[i])
+
+                        # else:
+                        #     montant = 0
+
+                            Transcription.objects.create(
+                                compte = Compte.objects.get(numero=i),
+                                nature = nature,
+                                montant = montant,
+                                document_id = request.data.get('id_doc')
+                            )
+
+                except TypeError:
+
+                    if objet != 0:
+                        montant =  float(objet)
+
+                    # else:
+                    #     montant = 0
 
                         Transcription.objects.create(
-                            compte = Compte.objects.get(numero=i),
                             nature = nature,
                             montant = montant,
                             document_id = request.data.get('id_doc')
                         )
-
-                except TypeError:
-
-                    if objet != "":
-                        montant =  int(objet)
-                    else:
-                        montant = 0
-
-                    Transcription.objects.create(
-                        nature = nature,
-                        montant = montant,
-                        document_id = request.data.get('id_doc')
-                    )
 
             return JsonResponse({"succes": "Les données ont été transcrises avec succès"})
         
@@ -225,7 +251,7 @@ class TranscriptionView(APIView):
         transcription = Transcription.objects.filter(document__piece__nom_piece='TSDMT')
         return JsonResponse(serializers.serialize('json', transcription), safe=False)
 
-"""
+
 class CompteView(APIView):
     def post(self, request):
         if request.data.get('action') == 'get_comptes_regroupements':
@@ -253,7 +279,7 @@ class CompteView(APIView):
             
 
     def get(self, request):
-        comptes = Compte.objects.all()
-        comptes_serialize = serializers.serialize('json', comptes)
-        return JsonResponse(json.loads(comptes_serialize), safe=False)
-"""      
+        comptes = Compte.objects.all().values('numero')
+        # comptes_serialize = serializers.serialize('json', comptes)
+        return JsonResponse(list(comptes), safe=False)
+     

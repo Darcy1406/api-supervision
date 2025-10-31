@@ -22,7 +22,7 @@ urlpatterns = [
     path('piece_compte/lister', views.PieceCompteView.as_view(), name='lister_liaison_piece_compte'),
     path('piece_compte/liste_liaison_pour_une_piece', views.PieceCompteView.as_view(), name='liste_liaison_pour_une_piece'),
     
-    # path('compte/create', views.CompteView.as_view(), name='get_comptes'),
-    # path('compte/get_comptes', views.CompteView.as_view(), name='get_comptes'),
-    # path('compte/get_comptes_regroupements', views.CompteView.as_view(), name='get_comptes'),
+    path('compte/create', views.CompteView.as_view(), name='get_comptes'),
+    path('compte/get_comptes', views.CompteView.as_view(), name='get_comptes'),
+    path('compte/get_comptes_regroupements', views.CompteView.as_view(), name='get_comptes'),
 ]
