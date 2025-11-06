@@ -1,11 +1,16 @@
 from django.shortcuts import render
 from django.core import serializers
+from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
+from .models import Piece, Document, Transcription, Compte, PieceCompte, Trace, Anomalie, Total_montant_transcription_filtrees, Correction
 from rest_framework.decorators import api_view
 from rest_framework.views import APIView
-from .models import Piece, Document, Transcription, Compte, PieceCompte
+from rest_framework import status
+from rest_framework.response import Response
 from users.models import Poste_comptable
+from datetime import datetime
 import json
+import pandas as pd
 
 
 # Create your views here.
@@ -131,7 +136,7 @@ class DocumentView(APIView):
             # poste_comptable_list = poste_comptable.split(" ")
 
             document = Document(
-                nom_fichier = request.data.get("nom_fichier") + ", " + request.data.get("decade"),
+                nom_fichier = request.data.get("nom_fichier") + ", " + request.data.get("info_supp"),
                 type = request.data.get("type_fichier"),
                 contenu = contenu.read(),
                 date_arrivee = request.data.get("date_arrivee"),
@@ -183,6 +188,9 @@ class DocumentView(APIView):
             document = Document.objects.all().values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee')
             return JsonResponse(list(document), safe=False)
 
+        elif request.data.get('action') == 'compter_nombre_documents_generale':
+            nb_count = Document.objects.count()
+            return JsonResponse({'total_doc': nb_count})
 
     def get(self, request):
             document = Document.objects.all().select_related('poste_comptable', 'piece').values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee')
@@ -191,7 +199,6 @@ class DocumentView(APIView):
 
 class TranscriptionView(APIView):
     def post(self, request):
-        
         if request.data.get('action') == 'ajouter_transcription':
             natures = request.data.get("natures")
 
@@ -227,8 +234,45 @@ class TranscriptionView(APIView):
                             montant = montant,
                             document_id = request.data.get('id_doc')
                         )
+            Trace.objects.create(
+                utilisateur_id = request.data.get('utilisateur'),
+                action = f"a transcrit une pièce - {request.data.get('piece')}",
+            )
 
             return JsonResponse({"succes": "Les données ont été transcrises avec succès"})
+        
+        elif request.data.get('action') == 'ajouter_transcription_balance':
+            fichier = request.FILES.get('fichier')
+            df = pd.read_excel(fichier)
+
+            df_melted = df.melt(
+                id_vars=['EXERCICE', 'CLASSE', 'LECR_CPT_GENERAL', 'LECR_AUX'],
+                var_name='NATURE',
+                value_name='MONTANT'
+            )
+
+            # Filtrer les montants valides
+            df_filtered = df_melted[df_melted['MONTANT'].notna() & (df_melted['MONTANT'] != 0)]
+
+            balance = []
+
+            for _, row in df_filtered.iterrows():
+                compte_obj = Compte.objects.filter(numero=row['LECR_CPT_GENERAL']).first()
+                if not compte_obj:
+                    continue  # ignore si le compte n'existe pas
+                balance.append(
+                    Transcription(
+                        document_id=request.data.get('document_id'),
+                        nature=row['NATURE'],
+                        montant=row['MONTANT'],
+                        compte_id=compte_obj.id
+                    )
+                )
+
+            Transcription.objects.bulk_create(balance)
+
+            return JsonResponse({"succes": "Les données ont été transcrises avec succès"})
+
         
         elif request.data.get('action') == 'voir_detail_transcription':
 
@@ -245,11 +289,22 @@ class TranscriptionView(APIView):
                     'montant').order_by('nature')
 
             return JsonResponse(list(transcription), safe=False)
+        
+        elif request.data.get('action') == 'analyser_transcription_sje':
+            transcription = Transcription.objects.filter(document__piece__nom_piece=request.data.get('piece'), document__poste_comptable__nom_poste=request.data.get('poste_comptable'), document__exercice=request.data.get('exercice'), nature__in=['solde', 'report']).values('document__nom_fichier', 'nature', 'montant')
+            return JsonResponse(list(transcription), safe=False)
 
 
     def get(self, request):
         transcription = Transcription.objects.filter(document__piece__nom_piece='TSDMT')
         return JsonResponse(serializers.serialize('json', transcription), safe=False)
+
+
+class TotalMontantTranscriptionFiltreeView(APIView):
+    def post(self, request):
+        if request.data.get('action') == 'analyse_equilibre_balance':
+            total = Total_montant_transcription_filtrees.objects.filter(nom_poste=request.data.get('poste_comptable'), nom_piece=request.data.get('piece'), mois=request.data.get('mois'), exercice=request.data.get('exercice')).values('date_arrivee', 'nom_fichier', 'nature', 'total')
+            return JsonResponse(list(total), safe=False)
 
 
 class CompteView(APIView):
@@ -282,4 +337,115 @@ class CompteView(APIView):
         comptes = Compte.objects.all().values('numero')
         # comptes_serialize = serializers.serialize('json', comptes)
         return JsonResponse(list(comptes), safe=False)
-     
+
+
+class TraceView(APIView):
+    def get(self, request):
+        traces = Trace.objects.all().values('id', 'utilisateur_id', 'utilisateur__nom', 'utilisateur__prenom', 'action', 'created_at').order_by('id')
+        return JsonResponse(list(traces), safe=False)
+    
+
+class AnomalieView(APIView):
+
+    def post(self, request):
+
+        if(request.data.get('action') == 'ajouter_anomalie'):
+            data = request.data.get('data')  # DRF parse automatiquement le JSON
+            inserted = 0
+            skipped = 0
+
+            for item in data:
+                date_str = item.get('date')
+                description = item.get('description')
+                fichier_nom = item.get('fichier')
+
+                # Conversion de la date string en objet date
+                try:
+                    date_anomalie = datetime.strptime(date_str, "%Y-%m-%d").date()
+                except (ValueError, TypeError):
+                    skipped += 1
+                    continue  # ignore si la date n'est pas valide
+
+                # Récupération du document
+                try:
+                    document = Document.objects.get(nom_fichier=fichier_nom)  # adapter le champ 'nom' si nécessaire
+                except Document.DoesNotExist:
+                    skipped += 1
+                    continue  # ignore si le document n'existe pas
+
+                # Vérifier si le document a déjà une anomalie
+                if not hasattr(document, 'anomalie'):
+                    Anomalie.objects.create(
+                        date_anomalie=date_anomalie,
+                        document=document,
+                        description=description,
+                        statut="Nouveau"  # valeur par défaut
+                    )
+                    inserted += 1
+                else:
+                    skipped += 1
+
+            return Response({
+                "status": "ok",
+                "inserted": inserted,
+                "skipped": skipped
+            }, status=status.HTTP_200_OK)
+    
+        elif(request.data.get('action') == 'changer_statut_anomalie_en_cours'):
+            anomalies = request.data.get('anomalies')
+
+            for id_anomalie in anomalies:
+                anomalie = Anomalie.objects.get(id=id_anomalie)
+                anomalie.statut = 'En cours'
+                anomalie.save()
+                
+            return JsonResponse({'succes': str(anomalies.__len__()) + " anomalie(s) traitée(s)"})
+
+        elif(request.data.get('action') == 'compter_nombre_anomalies_generale'):
+            nb_anomalies = Anomalie.objects.count()
+            return JsonResponse({'total_anomalies': nb_anomalies})
+        
+        elif(request.data.get('action') == 'compter_nombre_anomalies_resolu'):
+            nb_anomalies_resolu = Anomalie.objects.filter( Q(statut__icontains='résolu') | Q(statut__icontains='resolu')).count()
+            return JsonResponse({'total_anomalies_resolu': nb_anomalies_resolu})
+        
+        elif(request.data.get('action') == 'recuperer_nombre_anomalies_par_mois'):
+            anomalies = []
+            all_month = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+            for month in all_month:
+                nb_anomalies = Anomalie.objects.filter(created_at__month=month).count()
+                anomalies.append(nb_anomalies)
+                # print('nombre', nb_anomalies)
+            return JsonResponse(list(anomalies), safe=False)
+
+    def get(self, request):
+        # Optionnel : renvoyer toutes les anomalies
+        anomalies = Anomalie.objects.all().values(
+            'id', 
+            'date_anomalie', 
+            'description', 
+            'statut' , 
+            'document__poste_comptable__nom_poste', 
+            'document__exercice',
+            'created_at',
+        ).order_by('id')
+        return Response(list(anomalies))
+
+
+class CorrectionView(APIView):
+    def post(self, request):
+
+        if(request.data.get('action') == 'ajouter_correction'):
+
+            correction = Correction(
+                commentaire = request.data.get('commentaire'),
+                anomalie_id = request.data.get('anomalie')
+            ) 
+
+            anomalie = Anomalie.objects.get(id=request.data.get('anomalie'))
+            anomalie.statut = 'Résolu'
+
+            correction.save()
+            anomalie.save()
+
+            return JsonResponse({"succes": "L'anomalie est considerée comme résolu"})

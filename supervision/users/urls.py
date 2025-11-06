@@ -14,7 +14,7 @@ urlpatterns = [
     path("zone/get", views.ZoneView.as_view(), name="recuper_tous_les_zones"),
 
     path("poste_comptable/get", views.PosteComptableView.as_view(), name="api-poste-comptable-get"),
-    path("poste_comptable/all", views.PosteComptableView.as_view(), name="liste-de-tous-les-poste-comptables"),
+    path("poste_comptable/all", views.PosteComptableView.as_view(), name="liste-des-poste-comptables"),
     path("poste_comptable/type", views.PosteComptableView.as_view(), name="liste-de-tous-les-types-postes-comptables"),
     path("poste_comptable/selectionner_poste_piece", views.PosteComptableView.as_view(), name="selectionner-tous-les-postes-lies-au-piece"),
 ]

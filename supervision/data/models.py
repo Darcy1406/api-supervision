@@ -1,5 +1,5 @@
 from django.db import models
-from users.models import Poste_comptable
+from users.models import Poste_comptable, Utilisateur
 
 # Create your models here.
 class Piece(models.Model):
@@ -49,9 +49,44 @@ class Transcription(models.Model):
     document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='documents')
 
 
+class Total_montant_transcription_filtrees(models.Model):
+    nature = models.CharField(max_length=100)
+    nom_fichier = models.CharField(max_length=200)
+    date_arrivee = models.DateField()
+    mois = models.CharField(max_length=20)
+    exercice = models.CharField(max_length=20)
+    nom_piece = models.CharField(max_length=200)
+    nom_poste = models.CharField(max_length=60)
+    total = models.DecimalField(max_digits=15, decimal_places=2)
+
+    class Meta:
+        managed = False  # Django ne la créera pas, c’est une vue
+        db_table = 'total_montant_transcription_filtrees'  # nom exact de la vue
+
+
+
 class PieceCompte(models.Model):
     piece = models.ForeignKey(Piece, on_delete=models.CASCADE, related_name='liaison_comptes')
     compte = models.ForeignKey(Compte, on_delete=models.CASCADE, related_name='liaison_piece')
     nature = models.CharField(max_length=255, null=True)
     created_at = models.DateField(auto_now_add=True, null=True)
     updated_at = models.DateField(auto_now=True, null=True)
+
+
+class Trace(models.Model):
+    utilisateur = models.ForeignKey(Utilisateur, on_delete=models.CASCADE, related_name='traces')
+    action = models.CharField(max_length=128)
+    created_at = models.DateField(auto_now_add=True, null=True)
+
+class Anomalie(models.Model):
+    date_anomalie = models.DateField()
+    document = models.OneToOneField(Document, on_delete=models.CASCADE, related_name='anomalie')
+    description = models.CharField(max_length=255, null=True)
+    statut = models.CharField(max_length=15)
+    created_at = models.DateField(auto_now_add=True, null=True)
+    updated_at = models.DateField(auto_now=True, null=True)
+
+class Correction(models.Model):
+    anomalie = models.ForeignKey(Anomalie, on_delete=models.CASCADE, related_name='correction')
+    commentaire = models.CharField(max_length=255)
+    created_at = models.DateField(auto_now_add=True)
