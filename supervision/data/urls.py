@@ -36,6 +36,7 @@ urlpatterns = [
     path('anomalie/count', views.AnomalieView.as_view(), name='lister_des_anomalies'),
 
     path('analyse/equilibre_balance', views.TotalMontantTranscriptionFiltreeView.as_view(), name='obtenir_les_donnees_pour_analyse_equilibre_balance'),
+    path('analyse/solde_caisse', views.TotalMontantTranscriptionFiltreeView.as_view(), name='obtenir_les_donnees_pour_analyse_solde_caisse'),
 
     path('correction/insert', views.CorrectionView.as_view(), name='ajouter_une_correction_d_anomalie')
 ]

@@ -12,6 +12,9 @@ from datetime import datetime
 import json
 import pandas as pd
 
+import calendar
+from datetime import date
+
 
 # Create your views here.
 def index(request):
@@ -305,6 +308,15 @@ class TotalMontantTranscriptionFiltreeView(APIView):
         if request.data.get('action') == 'analyse_equilibre_balance':
             total = Total_montant_transcription_filtrees.objects.filter(nom_poste=request.data.get('poste_comptable'), nom_piece=request.data.get('piece'), mois=request.data.get('mois'), exercice=request.data.get('exercice')).values('date_arrivee', 'nom_fichier', 'nature', 'total')
             return JsonResponse(list(total), safe=False)
+        
+        if request.data.get('action') == 'verfication_solde_caisse':
+            # Récupère le dernier jour du mois
+            dernier_jour = calendar.monthrange(int(request.data.get('exercice')), int(request.data.get('mois')))[1]
+            # Crée un objet date correspondant au dernier jour du mois
+            date_sje = date(int(request.data.get('exercice')), int(request.data.get('mois')), dernier_jour)
+            solde_balance = Total_montant_transcription_filtrees.objects.filter(nom_poste=request.data.get('poste_comptable'), nom_piece='BOD', mois=request.data.get('mois'), exercice=request.data.get('exercice'), nature__icontains='SLD_C').values('date_arrivee', 'nom_fichier', 'nature', 'total')
+            encaisse_fin_du_mois_sje = Total_montant_transcription_filtrees.objects.filter(nom_poste=request.data.get('poste_comptable'), nom_piece='SJE', nature__icontains='solde', nom_fichier__icontains='2025-11-04').values('date_arrivee', 'nom_fichier', 'nature', 'total')
+            return JsonResponse({'balance': list(solde_balance), 'sje': list(encaisse_fin_du_mois_sje)})
 
 
 class CompteView(APIView):

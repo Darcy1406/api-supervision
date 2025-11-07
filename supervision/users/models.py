@@ -16,7 +16,6 @@ class Utilisateur(models.Model):
     
 
 class Poste_comptable(models.Model):
-
     code_poste = models.CharField(max_length=25, null=True)
     nom_poste = models.CharField(max_length=50, null=True)
     responsable = models.CharField(max_length=50, null=True)
