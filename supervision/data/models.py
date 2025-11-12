@@ -45,7 +45,7 @@ class Compte(models.Model):
 class Transcription(models.Model):
     compte = models.ForeignKey(Compte, on_delete=models.CASCADE, related_name='transcriptions',null=True)
     nature = models.CharField(max_length=255)
-    montant = models.FloatField()
+    montant = models.DecimalField(max_digits=15, decimal_places=2)
     document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='documents')
 
 
@@ -80,9 +80,10 @@ class Trace(models.Model):
 
 class Anomalie(models.Model):
     date_anomalie = models.DateField()
-    document = models.OneToOneField(Document, on_delete=models.CASCADE, related_name='anomalie')
+    document = models.ManyToManyField(Document, related_name='anomalies')
     description = models.CharField(max_length=255, null=True)
     statut = models.CharField(max_length=15)
+    type_analyse = models.CharField(max_length=50, null=True)
     created_at = models.DateField(auto_now_add=True, null=True)
     updated_at = models.DateField(auto_now=True, null=True)
 

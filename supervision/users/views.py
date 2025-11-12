@@ -163,7 +163,19 @@ class PosteComptableView(APIView):
             return JsonResponse(list(poste), safe=False)
         
         elif request.data.get('action') == 'afficher_les_postes_comptables_specifique_a_une_piece':
-            poste = Poste_comptable.objects.filter(utilisateur_id=request.data.get('utilisateur_id'), pieces=Piece.objects.get(nom_piece=request.data.get("piece"))).distinct().values("id", "nom_poste")
+            piece_data = request.data.get("piece")
+
+            # Si c’est une chaîne, on la transforme en liste d’un seul élément
+            if isinstance(piece_data, str):
+                piece_data = [piece_data]
+
+            # Si c’est None, on met une liste vide pour éviter les erreurs
+            piece_data = piece_data or []
+
+            # On récupère les objets Piece correspondants
+            pieces = Piece.objects.filter(nom_piece__in=piece_data)
+
+            poste = Poste_comptable.objects.filter(utilisateur_id=request.data.get('utilisateur_id'), pieces__in=pieces).distinct().values("id", "nom_poste")
             return JsonResponse(list(poste), safe=False)
 
         elif request.data.get('action') == 'selectionner_poste_piece':

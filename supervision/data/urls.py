@@ -7,15 +7,17 @@ urlpatterns = [
     path('piece/create', views.PieceView.as_view(), name='create_piece'),
     path('piece/get_pieces', views.PieceView.as_view(), name='get_pieces'),
     path('piece/update', views.PieceView.as_view(), name='update_piece'),
+    path('piece/periode', views.PieceView.as_view(), name='recuperer_la_periode_la_piece'),
 
     path('document/save', views.DocumentView.as_view(), name='save_document'),
     path('document/liste', views.DocumentView.as_view(), name='liste_document'),
     path('document/rechercher', views.DocumentView.as_view(), name='rechercher_un_document'),
     path('document/count', views.DocumentView.as_view(), name='compter_le_nombre_de_document_generale'),
+    path('document/telecharger', views.DocumentView.as_view(), name='telecharger_un_document'),
 
     path('transcription/create', views.TranscriptionView.as_view(), name='create_transcription'),
     path('transcription/liste', views.TranscriptionView.as_view(), name='liste_transcription'),
-    path('transcription/analyse', views.TranscriptionView.as_view(), name='analyser_transcription_par_type'),
+    path('transcription/data_analyse', views.TranscriptionView.as_view(), name='analyser_transcription_par_type'),
 
     path('compte/get_number', views.CompteView.as_view(), name='get_number_compte'),
 
@@ -38,5 +40,6 @@ urlpatterns = [
     path('analyse/equilibre_balance', views.TotalMontantTranscriptionFiltreeView.as_view(), name='obtenir_les_donnees_pour_analyse_equilibre_balance'),
     path('analyse/solde_caisse', views.TotalMontantTranscriptionFiltreeView.as_view(), name='obtenir_les_donnees_pour_analyse_solde_caisse'),
 
-    path('correction/insert', views.CorrectionView.as_view(), name='ajouter_une_correction_d_anomalie')
+    path('correction/insert', views.CorrectionView.as_view(), name='ajouter_une_correction_d_anomalie'),
+    path('correction/voir_detail', views.CorrectionView.as_view(), name='voir_detail_resolution_anomalie'),
 ]

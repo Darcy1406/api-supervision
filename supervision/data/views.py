@@ -4,12 +4,16 @@ from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from .models import Piece, Document, Transcription, Compte, PieceCompte, Trace, Anomalie, Total_montant_transcription_filtrees, Correction
 from rest_framework.decorators import api_view
+from django.contrib.postgres.aggregates import ArrayAgg
+from django.db.models import F
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.response import Response
 from users.models import Poste_comptable
 from datetime import datetime
 import json
+import os.path
+import shutil
 import pandas as pd
 
 import calendar
@@ -36,21 +40,26 @@ def index(request):
 # Piece
 class PieceView(APIView):
     def post(self, request):
+
+        if request.data.get('action') == 'ajouter_piece':
         
-        poste_comptable = request.data.get('poste_comptable')
+            poste_comptable = request.data.get('poste_comptable')
 
-        piece_object = Piece(
-            nom_piece = request.data.get("nom_piece"),
-            periode = request.data.get("periode"),
-        )
+            piece_object = Piece(
+                nom_piece = request.data.get("nom_piece"),
+                periode = request.data.get("periode"),
+            )
 
-        piece_object.save()
+            piece_object.save()
 
-        for poste in poste_comptable:
-            poste_comptable_filter = Poste_comptable.objects.filter(poste=poste)
-            piece_object.poste_comptable.add(*poste_comptable_filter)
+            for poste in poste_comptable:
+                poste_comptable_filter = Poste_comptable.objects.filter(poste=poste)
+                piece_object.poste_comptable.add(*poste_comptable_filter)
 
-        return JsonResponse({"succes": "La pièce a été ajoutée avec succès"})
+            return JsonResponse({"succes": "La pièce a été ajoutée avec succès"})
+        elif request.data.get('action') == 'recuperer_periode_piece':
+            periode = Piece.objects.filter(nom_piece=request.data.get('piece')).values_list('periode')
+            return JsonResponse(list(periode), safe=False)
 
 
     def put(self, request):
@@ -152,6 +161,27 @@ class DocumentView(APIView):
             # print(request.data.get('nom_fichier'))
             return JsonResponse({"id_fichier": document.id})
         
+        elif request.data.get("action") == 'telecharger_document':
+
+            home = os.path.expanduser("~")
+            downloads = os.path.join(home, "Downloads")
+
+            id_doc = request.data.get('id_document')
+            print(id_doc)
+
+            document = Document.objects.filter(pk=id_doc).values('contenu', 'nom_fichier')
+            print('doc', document)
+            destination_file = os.path.join(downloads, document[0]["nom_fichier"].split(', ')[0])
+
+            file = open(document[0]['nom_fichier'].split(', ')[0], 'wb')
+            file.write(document[0]['contenu'])
+            shutil.copy(document[0]['nom_fichier'].split(', ')[0], destination_file)
+            file = file.close()
+
+            os.remove(document[0]['nom_fichier'].split(', ')[0])
+
+            return JsonResponse({'succes': 'Le telechargement du fichier est un succès'})
+
         elif request.data.get('action') == 'rechercher_un_document':
             piece = request.data.get("piece", "").strip()
             poste_comptable = request.data.get("poste_comptable", "").strip()
@@ -191,8 +221,14 @@ class DocumentView(APIView):
             document = Document.objects.all().values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee')
             return JsonResponse(list(document), safe=False)
 
+        # vue qui va compter le nombre de domcuments generale pour le tableau de bord
         elif request.data.get('action') == 'compter_nombre_documents_generale':
             nb_count = Document.objects.count()
+            return JsonResponse({'total_doc': nb_count})
+        
+          # vue qui va compter le nombre de domcuments par poste comptable pour le tableau de bord
+        elif request.data.get('action') == 'compter_nombre_documents_par_poste_comptable':
+            nb_count = Document.objects.filter(poste_comptable__nom_poste=request.data.get('poste_comptable')).count()
             return JsonResponse({'total_doc': nb_count})
 
     def get(self, request):
@@ -200,8 +236,10 @@ class DocumentView(APIView):
             return JsonResponse(list(document), safe=False)
 
 
+# Transcription
 class TranscriptionView(APIView):
     def post(self, request):
+
         if request.data.get('action') == 'ajouter_transcription':
             natures = request.data.get("natures")
 
@@ -276,7 +314,6 @@ class TranscriptionView(APIView):
 
             return JsonResponse({"succes": "Les données ont été transcrises avec succès"})
 
-        
         elif request.data.get('action') == 'voir_detail_transcription':
 
             transcription = Transcription.objects.filter(
@@ -287,14 +324,22 @@ class TranscriptionView(APIView):
                
                 ).exclude(montant=0).values(
                     'compte__numero', 
-                    'compte__libelle', 
+                    'compte__classe',
+                    'compte__libelle',
+                    'document_id',
                     'nature',
-                    'montant').order_by('nature')
+                    'montant').order_by('compte__classe', 'compte__numero')
 
             return JsonResponse(list(transcription), safe=False)
         
         elif request.data.get('action') == 'analyser_transcription_sje':
             transcription = Transcription.objects.filter(document__piece__nom_piece=request.data.get('piece'), document__poste_comptable__nom_poste=request.data.get('poste_comptable'), document__exercice=request.data.get('exercice'), nature__in=['solde', 'report']).values('document__nom_fichier', 'nature', 'montant')
+            return JsonResponse(list(transcription), safe=False)
+        
+        elif request.data.get('action') == 'analyser_solde_anormale':
+
+            transcription = Transcription.objects.filter(document__piece__nom_piece=request.data.get('piece'), document__poste_comptable__nom_poste=request.data.get('poste_comptable'), document__nom_fichier__icontains=request.data.get('proprietaire'), nature__icontains='sld', compte__classe__in=[4, 5], document__mois=request.data.get('mois'), document__exercice=request.data.get('exercice')).values('document__nom_fichier', 'nature', 'montant', 'compte__numero', 'compte__classe', 'compte__solde_en_cours_exo', 'document__date_arrivee')
+
             return JsonResponse(list(transcription), safe=False)
 
 
@@ -305,20 +350,27 @@ class TranscriptionView(APIView):
 
 class TotalMontantTranscriptionFiltreeView(APIView):
     def post(self, request):
+
         if request.data.get('action') == 'analyse_equilibre_balance':
-            total = Total_montant_transcription_filtrees.objects.filter(nom_poste=request.data.get('poste_comptable'), nom_piece=request.data.get('piece'), mois=request.data.get('mois'), exercice=request.data.get('exercice')).values('date_arrivee', 'nom_fichier', 'nature', 'total')
+
+            total = Total_montant_transcription_filtrees.objects.filter(nom_poste=request.data.get('poste_comptable'), nom_piece=request.data.get('piece'), nom_fichier__icontains=request.data.get('proprietaire'), mois=request.data.get('mois'), exercice=request.data.get('exercice')).values('date_arrivee', 'nom_fichier', 'nature', 'total')
             return JsonResponse(list(total), safe=False)
         
         if request.data.get('action') == 'verfication_solde_caisse':
+
             # Récupère le dernier jour du mois
             dernier_jour = calendar.monthrange(int(request.data.get('exercice')), int(request.data.get('mois')))[1]
+
             # Crée un objet date correspondant au dernier jour du mois
             date_sje = date(int(request.data.get('exercice')), int(request.data.get('mois')), dernier_jour)
-            solde_balance = Total_montant_transcription_filtrees.objects.filter(nom_poste=request.data.get('poste_comptable'), nom_piece='BOD', mois=request.data.get('mois'), exercice=request.data.get('exercice'), nature__icontains='SLD_C').values('date_arrivee', 'nom_fichier', 'nature', 'total')
+
+            solde_balance = Total_montant_transcription_filtrees.objects.filter(nom_poste=request.data.get('poste_comptable'), nom_piece='BOD', nom_fichier__icontains=request.data.get('proprietaire'), mois=request.data.get('mois'), exercice=request.data.get('exercice'), nature__icontains='SLD_C').values('date_arrivee', 'nom_fichier', 'nature', 'total')
             encaisse_fin_du_mois_sje = Total_montant_transcription_filtrees.objects.filter(nom_poste=request.data.get('poste_comptable'), nom_piece='SJE', nature__icontains='solde', nom_fichier__icontains='2025-11-04').values('date_arrivee', 'nom_fichier', 'nature', 'total')
+
             return JsonResponse({'balance': list(solde_balance), 'sje': list(encaisse_fin_du_mois_sje)})
 
 
+# Compte
 class CompteView(APIView):
     def post(self, request):
         if request.data.get('action') == 'get_comptes_regroupements':
@@ -351,12 +403,14 @@ class CompteView(APIView):
         return JsonResponse(list(comptes), safe=False)
 
 
+# Trace
 class TraceView(APIView):
     def get(self, request):
         traces = Trace.objects.all().values('id', 'utilisateur_id', 'utilisateur__nom', 'utilisateur__prenom', 'action', 'created_at').order_by('id')
         return JsonResponse(list(traces), safe=False)
     
 
+# Anomalie
 class AnomalieView(APIView):
 
     def post(self, request):
@@ -369,33 +423,41 @@ class AnomalieView(APIView):
             for item in data:
                 date_str = item.get('date')
                 description = item.get('description')
-                fichier_nom = item.get('fichier')
+                fichier_noms = item.get('fichier')
+                type_analyse = item.get('analyse')
 
                 # Conversion de la date string en objet date
                 try:
                     date_anomalie = datetime.strptime(date_str, "%Y-%m-%d").date()
                 except (ValueError, TypeError):
                     skipped += 1
-                    continue  # ignore si la date n'est pas valide
+                    continue 
 
-                # Récupération du document
                 try:
-                    document = Document.objects.get(nom_fichier=fichier_nom)  # adapter le champ 'nom' si nécessaire
-                except Document.DoesNotExist:
-                    skipped += 1
-                    continue  # ignore si le document n'existe pas
 
-                # Vérifier si le document a déjà une anomalie
-                if not hasattr(document, 'anomalie'):
-                    Anomalie.objects.create(
-                        date_anomalie=date_anomalie,
-                        document=document,
-                        description=description,
-                        statut="Nouveau"  # valeur par défaut
-                    )
-                    inserted += 1
-                else:
+                    anomalie = Anomalie.objects.get(description=description)
                     skipped += 1
+                    print("→ Anomalie déjà existante, ignorée")
+
+                except Anomalie.DoesNotExist:
+
+                    anomalie = Anomalie.objects.create(
+                        date_anomalie=date_anomalie,
+                        description=description,
+                        statut="Nouveau",  # valeur par défaut
+                        type_analyse=type_analyse
+                    )
+
+                    
+                    for nom in fichier_noms:
+                        try:
+                            doc = Document.objects.get(nom_fichier=nom)
+                            anomalie.document.add(doc)
+                        except Document.DoesNotExist:
+                            print(f"⚠️ Document non trouvé : {nom}")
+
+                    inserted += 1
+                
 
             return Response({
                 "status": "ok",
@@ -421,29 +483,78 @@ class AnomalieView(APIView):
             nb_anomalies_resolu = Anomalie.objects.filter( Q(statut__icontains='résolu') | Q(statut__icontains='resolu')).count()
             return JsonResponse({'total_anomalies_resolu': nb_anomalies_resolu})
         
+        elif request.data.get('action') == 'compter_nombres_anomalies_resolu_par_poste_comptables':
+            nb_anomalies_resolu = Anomalie.objects.filter( Q(statut__icontains='résolu') | Q(statut__icontains='resolu'), document__poste_comptable__nom_poste=request.data.get('poste_comptable')).count()
+            return JsonResponse({'total_anomalies_resolu': nb_anomalies_resolu})
+
+        # Cette vue va compter les nombres d'anomalies par mois
         elif(request.data.get('action') == 'recuperer_nombre_anomalies_par_mois'):
             anomalies = []
             all_month = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
             for month in all_month:
                 nb_anomalies = Anomalie.objects.filter(created_at__month=month).count()
                 anomalies.append(nb_anomalies)
+               
+            return JsonResponse(list(anomalies), safe=False)
+        
+        # Cette vue va compter les nombres d'anomalies par mois par poste comptable
+        elif(request.data.get('action') == 'recuperer_nombre_anomalies_par_mois_par_comptable'):
+            anomalies = []
+            all_month = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+            for month in all_month:
+                nb_anomalies = Anomalie.objects.filter(created_at__month=month, document__poste_comptable__nom_poste=request.data.get('poste_comptable')).count()
+                anomalies.append(nb_anomalies)
+               
+            return JsonResponse(list(anomalies), safe=False)
+
+        #Ce vue va compter les nombres d'anomalies resolues par mois
+        elif request.data.get('action') == 'recuperer_nombres_anomalies_resolues_par_mois':
+            anomalies = []
+            all_month = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+            for month in all_month:
+                nb_anomalies = Anomalie.objects.filter( Q(statut__icontains='résolu') | Q(statut__icontains='resolu'), created_at__month=month).count()
+                anomalies.append(nb_anomalies)
+                # print('nombre', nb_anomalies)
+            return JsonResponse(list(anomalies), safe=False)
+        
+        #Ce vue va compter les nombres d'anomalies resolues par mois par poste comptable
+        elif request.data.get('action') == 'recuperer_nombres_anomalies_resolues_par_mois_par_poste_comptable':
+            anomalies = []
+            all_month = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+            for month in all_month:
+                nb_anomalies = Anomalie.objects.filter( Q(statut__icontains='résolu') | Q(statut__icontains='resolu'), created_at__month=month, document__poste_comptable__nom_poste=request.data.get('poste_comptable') ).count()
+                anomalies.append(nb_anomalies)
                 # print('nombre', nb_anomalies)
             return JsonResponse(list(anomalies), safe=False)
 
+        # cette vue va compter le nombres d'anomalies par poste comptable
+        elif request.data.get('action') == 'compter_nombres_anomalies_par_poste_comptable':
+            nb_anomalies = Anomalie.objects.filter(document__poste_comptable__nom_poste=request.data.get('poste_comptable')).count()
+            return JsonResponse({'total_anomalies': nb_anomalies})
+
     def get(self, request):
         # Optionnel : renvoyer toutes les anomalies
-        anomalies = Anomalie.objects.all().values(
-            'id', 
-            'date_anomalie', 
-            'description', 
-            'statut' , 
-            'document__poste_comptable__nom_poste', 
+        anomalies = Anomalie.objects.annotate(
+            fichiers=ArrayAgg(
+                F('document__nom_fichier'),
+                distinct=True
+            )
+        ).values(
+            'id',
+            'date_anomalie',
+            'document__poste_comptable__nom_poste',
             'document__exercice',
+            'description',
+            'statut',
+            'type_analyse',
             'created_at',
+            'fichiers'
         ).order_by('id')
+            
         return Response(list(anomalies))
 
 
+# Correction
 class CorrectionView(APIView):
     def post(self, request):
 
@@ -461,3 +572,7 @@ class CorrectionView(APIView):
             anomalie.save()
 
             return JsonResponse({"succes": "L'anomalie est considerée comme résolu"})
+
+        elif request.data.get('action') == 'voir_detail_resolution_anomalie':
+            resolution = Correction.objects.filter(anomalie_id=request.data.get('anomalie')).values('commentaire')
+            return JsonResponse(list(resolution), safe=False)
