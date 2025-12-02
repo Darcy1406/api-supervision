@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'data.apps.DataConfig',
     'users.apps.UsersConfig',
+    'audit.apps.AuditConfig',
     'evenement.apps.EvenementConfig',
     'corsheaders',
     'rest_framework',
@@ -53,17 +54,27 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'audit.middleware.CurrentUserMiddleware',
 ]
 
 # Pour autoriser le frontend React
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-]
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3000",
+# ]
 
 CORS_ALLOW_CREDENTIALS = True
 
+CORS_ALLOW_ALL_ORIGINS = True # Pour tester
+
+ALLOWED_HOSTS = [
+    "127.0.0.1",        # localhost
+    "localhost",
+    "192.168.0.105",    # IP de ta machine hôte
+]
+
+
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
+    "http://192.168.0.108:3000",
 ]
 
 CSRF_COOKIE_HTTPONLY = False
@@ -78,6 +89,15 @@ SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SECURE = False
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 14   # 2 semaines
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = "darcyfranklin14@gmail.com"
+EMAIL_HOST_PASSWORD = "iefucprocksiofjq"
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 
 REST_FRAMEWORK = {

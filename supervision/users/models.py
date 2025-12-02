@@ -3,10 +3,13 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 
 # Create your models here.
+
+# Model : Zone
 class Zone(models.Model):
     nom_zone = models.CharField(max_length=50)
 
 
+# Model : utilisateur
 class Utilisateur(models.Model):
     nom = models.CharField(max_length=80)
     prenom = models.CharField(max_length=128)
@@ -15,6 +18,7 @@ class Utilisateur(models.Model):
     zone = models.ForeignKey(Zone, on_delete=models.CASCADE, related_name='zones' , null=True)
     
 
+# Model : Poste_comptable
 class Poste_comptable(models.Model):
     code_poste = models.CharField(max_length=25, null=True)
     nom_poste = models.CharField(max_length=50, null=True)
@@ -25,6 +29,7 @@ class Poste_comptable(models.Model):
     utilisateur = models.ForeignKey(Utilisateur, on_delete=models.CASCADE, related_name='poste_comptables', null=True)
 
 
+# Model : AuthentificationManager (va contenir les methodes de creation d'identifiant)
 class AuthentificationManager(BaseUserManager):
     def create_user(self, identifiant, password=None, **extra_fields):
         if not identifiant:
@@ -40,6 +45,7 @@ class AuthentificationManager(BaseUserManager):
         return self.create_user(identifiant, password, **extra_fields)
 
 
+# Model : Authentification
 class Authentification(AbstractBaseUser, PermissionsMixin):
     identifiant = models.CharField(max_length=20, unique=True)
     date_joined = models.DateTimeField(auto_now_add=True, null=True)

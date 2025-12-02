@@ -2,6 +2,8 @@ from django.db import models
 from users.models import Poste_comptable, Utilisateur
 
 # Create your models here.
+
+# Model : Piece
 class Piece(models.Model):
     nom_piece = models.CharField(max_length=10)
     periode = models.CharField(max_length=15)
@@ -10,6 +12,7 @@ class Piece(models.Model):
     poste_comptable = models.ManyToManyField(Poste_comptable, related_name="pieces")
 
 
+# Model : Document
 class Document(models.Model):
     exercice = models.CharField(max_length=10, null=True)
     mois = models.CharField(max_length=2, null=True)
@@ -20,13 +23,20 @@ class Document(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     poste_comptable = models.ForeignKey(Poste_comptable, on_delete=models.CASCADE, related_name='poste_comptable_documents')
     piece = models.ForeignKey(Piece, on_delete=models.CASCADE, related_name='piece_documents')
+    version = models.IntegerField(default=1)
 
 
+#Model : Exercice
+class Exercice(models.Model):
+    annee = models.CharField(max_length=5, unique=True)
 
+
+# Model : Proprietaire
 class Proprietaire(models.Model):
-    nom_proprietaire = models.CharField(max_length=35) 
+    nom_proprietaire = models.CharField(max_length=35)
 
 
+# Model : Compte
 class Compte(models.Model):
     classe = models.IntegerField(default=0)
     poste = models.IntegerField(default=0)
@@ -42,14 +52,16 @@ class Compte(models.Model):
     proprietaire = models.ForeignKey(Proprietaire, on_delete=models.CASCADE, related_name="comptes" , null=True)
 
 
+# Model : Transcription
 class Transcription(models.Model):
     compte = models.ForeignKey(Compte, on_delete=models.CASCADE, related_name='transcriptions',null=True)
     nature = models.CharField(max_length=255)
     montant = models.DecimalField(max_digits=15, decimal_places=2)
     document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='documents')
 
-
+# Model (Vue) : Total_montant_transcription_filtrees
 class Total_montant_transcription_filtrees(models.Model):
+    id = models.IntegerField(primary_key=True)
     nature = models.CharField(max_length=100)
     nom_fichier = models.CharField(max_length=200)
     date_arrivee = models.DateField()
@@ -58,13 +70,14 @@ class Total_montant_transcription_filtrees(models.Model):
     nom_piece = models.CharField(max_length=200)
     nom_poste = models.CharField(max_length=60)
     total = models.DecimalField(max_digits=15, decimal_places=2)
+    version = models.IntegerField()
 
     class Meta:
-        managed = False  # Django ne la créera pas, c’est une vue
-        db_table = 'total_montant_transcription_filtrees'  # nom exact de la vue
+        managed = False
+        db_table = 'total_montant_transcription_filtrees'
 
 
-
+# Model : Liste entre Piece - Compte
 class PieceCompte(models.Model):
     piece = models.ForeignKey(Piece, on_delete=models.CASCADE, related_name='liaison_comptes')
     compte = models.ForeignKey(Compte, on_delete=models.CASCADE, related_name='liaison_piece')
@@ -73,11 +86,7 @@ class PieceCompte(models.Model):
     updated_at = models.DateField(auto_now=True, null=True)
 
 
-class Trace(models.Model):
-    utilisateur = models.ForeignKey(Utilisateur, on_delete=models.CASCADE, related_name='traces')
-    action = models.CharField(max_length=128)
-    created_at = models.DateField(auto_now_add=True, null=True)
-
+# Model : Anomalie
 class Anomalie(models.Model):
     date_anomalie = models.DateField()
     document = models.ManyToManyField(Document, related_name='anomalies')
@@ -87,6 +96,8 @@ class Anomalie(models.Model):
     created_at = models.DateField(auto_now_add=True, null=True)
     updated_at = models.DateField(auto_now=True, null=True)
 
+
+# Model : Correction
 class Correction(models.Model):
     anomalie = models.ForeignKey(Anomalie, on_delete=models.CASCADE, related_name='correction')
     commentaire = models.CharField(max_length=255)

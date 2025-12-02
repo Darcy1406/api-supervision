@@ -2,7 +2,7 @@ from django.shortcuts import render
 from django.core import serializers
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
-from .models import Piece, Document, Transcription, Compte, PieceCompte, Trace, Anomalie, Total_montant_transcription_filtrees, Correction
+from .models import Piece, Document, Transcription, Compte, PieceCompte, Anomalie, Total_montant_transcription_filtrees, Correction, Proprietaire, Exercice
 from rest_framework.decorators import api_view
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.db.models import F
@@ -15,9 +15,12 @@ import json
 import os.path
 import shutil
 import pandas as pd
-
 import calendar
 from datetime import date
+from rest_framework.permissions import IsAuthenticated
+from django.db.models import Max
+from fpdf import FPDF
+from django.http import HttpResponse
 
 
 # Create your views here.
@@ -30,13 +33,14 @@ def index(request):
     return HttpResponse(fichiers[0].contenu)
 
 
-# class CompteView(APIView):
-#     def get(self, request):
-#         comptes = Compte.objects.all().values('numero')
-#         return JsonResponse(list(comptes), safe=False)
+# Proprietaire
+class ProprietaireView(APIView):
+    
+    def get(self, request):
+        proprio = Proprietaire.objects.all().values('id', 'nom_proprietaire')
+        return JsonResponse(list(proprio), safe=False)
 
 
-# @api_view(['POST'])
 # Piece
 class PieceView(APIView):
     def post(self, request):
@@ -57,6 +61,7 @@ class PieceView(APIView):
                 piece_object.poste_comptable.add(*poste_comptable_filter)
 
             return JsonResponse({"succes": "La pièce a été ajoutée avec succès"})
+        
         elif request.data.get('action') == 'recuperer_periode_piece':
             periode = Piece.objects.filter(nom_piece=request.data.get('piece')).values_list('periode')
             return JsonResponse(list(periode), safe=False)
@@ -81,11 +86,37 @@ class PieceView(APIView):
         return JsonResponse({"succes": "La pièce a été modifiée avec succès"})
 
 
+    def delete(self, request):
+        id = request.data.get('id')
+        if not id: 
+            return JsonResponse({"error": "ID manquant"}, status=400)
+        
+        try:
+            piece = Piece.objects.get(id=id)
+            piece.delete()
+            return JsonResponse({'succes': 'La pièce a été supprimée avec succes'})
+        except Piece.DoesNotExist:
+            return JsonResponse({"error": "Pièce non trouvée"}, status=404)
+
+
+
     def get(self, request):
         pieces = Piece.objects.all().order_by('nom_piece')
         pieces_serialize = serializers.serialize('json', pieces)
         return JsonResponse(json.loads(pieces_serialize), safe=False)
     
+
+class ExerciceView(APIView):
+    def post(self, request):
+        exercice = Exercice(
+            annee=request.data.get('annee')
+        )
+        exercice.save()
+        return JsonResponse({'succes': 'Nouveau exercice ajouté avec succès'})
+
+    def get(self, request):
+        exercices = Exercice.objects.all().values('id', 'annee').order_by('-id')
+        return JsonResponse(list(exercices), safe=False)
 
 # Liaison piece - compte
 class PieceCompteView(APIView):
@@ -136,51 +167,93 @@ class PieceCompteView(APIView):
             'updated_at',
         ).order_by('piece__nom_piece')
         return JsonResponse(list(piece_compte), safe=False)
-        
+
 
 # Document
 class DocumentView(APIView):
+
     def post(self, request):
 
         if request.data.get("action") == 'ajouter_un_document':
             contenu = request.FILES.get("fichier")
-            poste_comptable = request.data.get("poste_comptable")
-            # poste_comptable_list = poste_comptable.split(" ")
+            poste_comptable_nom = request.data.get("poste_comptable")
+            piece_nom = request.data.get("piece")
+            exercice = request.data.get("exercice")
+            mois = request.data.get("mois")
+            info_supp_nouveau = request.data.get("info_supp")
 
+            # Récupération de la pièce et du poste comptable
+            poste_comptable = Poste_comptable.objects.get(nom_poste=poste_comptable_nom)
+            piece = Piece.objects.get(nom_piece=piece_nom)
+
+            # Chercher la dernière version du document existant avec le même info_supp
+            documents_existants = Document.objects.filter(
+                piece=piece,
+                exercice=exercice,
+                mois=mois
+            )
+
+            # Extraire les documents avec le même info_supp
+            documents_meme_info = [
+                doc for doc in documents_existants
+                if len(doc.nom_fichier.split(", ")) > 1 and doc.nom_fichier.split(", ")[1] == info_supp_nouveau
+            ]
+
+            if documents_meme_info:
+                # Récupérer la version max
+                version = max(doc.version for doc in documents_meme_info) + 1
+            else:
+                version = 1
+
+            # Créer le nouveau document avec la version correcte
             document = Document(
-                nom_fichier = request.data.get("nom_fichier") + ", " + request.data.get("info_supp"),
-                type = request.data.get("type_fichier"),
-                contenu = contenu.read(),
-                date_arrivee = request.data.get("date_arrivee"),
-                poste_comptable = Poste_comptable.objects.get(nom_poste=poste_comptable),
-                piece = Piece.objects.get(nom_piece=request.data.get("piece")),
-                exercice = request.data.get("exercice"),
-                mois = request.data.get("mois"),
+                nom_fichier=f"{request.data.get('nom_fichier')}, {info_supp_nouveau}",
+                type=request.data.get("type_fichier"),
+                contenu=contenu.read(),
+                date_arrivee=request.data.get("date_arrivee"),
+                poste_comptable=poste_comptable,
+                piece=piece,
+                exercice=exercice,
+                mois=mois,
+                version=version,
             )
             document.save()
-            # print(request.data.get('nom_fichier'))
-            return JsonResponse({"id_fichier": document.id})
-        
+            return JsonResponse({"id_fichier": document.id, "version": document.version})
+
         elif request.data.get("action") == 'telecharger_document':
+            import mimetypes
+            import urllib.parse
 
-            home = os.path.expanduser("~")
-            downloads = os.path.join(home, "Downloads")
-
+            # Récupérer l'ID du document
             id_doc = request.data.get('id_document')
-            print(id_doc)
+            if not id_doc:
+                return JsonResponse({"error": "ID document manquant"}, status=400)
 
-            document = Document.objects.filter(pk=id_doc).values('contenu', 'nom_fichier')
-            print('doc', document)
-            destination_file = os.path.join(downloads, document[0]["nom_fichier"].split(', ')[0])
+            # Chercher le document
+            try:
+                document = Document.objects.get(pk=id_doc)
+            except Document.DoesNotExist:
+                return JsonResponse({"error": "Document introuvable"}, status=404)
 
-            file = open(document[0]['nom_fichier'].split(', ')[0], 'wb')
-            file.write(document[0]['contenu'])
-            shutil.copy(document[0]['nom_fichier'].split(', ')[0], destination_file)
-            file = file.close()
+            # Contenu et nom du fichier
+            file_content = document.contenu  # BinaryField
+            file_name = document.nom_fichier.split(', ')[0]  # On prend le premier nom si plusieurs
+            quoted_name = urllib.parse.quote(file_name)      # encode UTF-8
 
-            os.remove(document[0]['nom_fichier'].split(', ')[0])
+            # Détecter le type MIME selon l'extension du fichier
+            content_type, _ = mimetypes.guess_type(file_name)
+            content_type = content_type or 'application/octet-stream'
 
-            return JsonResponse({'succes': 'Le telechargement du fichier est un succès'})
+            # Créer la réponse HTTP pour téléchargement
+            response = HttpResponse(file_content, content_type=content_type)
+            response['Content-Disposition'] = f"attachment; filename=\"{file_name}\"; filename*=UTF-8''{quoted_name}"
+
+            # Exposer le header Content-Disposition pour que fetch() puisse le lire
+            response["Access-Control-Expose-Headers"] = "Content-Disposition"
+
+            return response
+
+
 
         elif request.data.get('action') == 'rechercher_un_document':
             piece = request.data.get("piece", "").strip()
@@ -209,17 +282,122 @@ class DocumentView(APIView):
             # Conversion JSON pour renvoyer à React
             return JsonResponse(list(document), safe=False)
     
-        elif request.data.get('action') == 'listes_documents_auditeur':
-            document = Document.objects.all().select_related('poste_comptable', 'piece').filter(poste_comptable__utilisateur_id=request.data.get('utilisateur')).values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee')
-            return JsonResponse(list(document), safe=False)
-            
-        elif request.data.get('action') == 'listes_documents_chef_unite':
-            document = Document.objects.all().select_related('poste_comptable', 'piece').filter(poste_comptable__utilisateur__zone__nom_zone=request.data.get('zone')).values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee')
-            return JsonResponse(list(document), safe=False)
+        # elif request.data.get('action') == 'listes_documents_auditeur':
+        #     document = Document.objects.all().select_related('poste_comptable', 'piece').filter(poste_comptable__utilisateur_id=request.data.get('utilisateur')).values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee').order_by('-date_arrivee')
+        #     return JsonResponse(list(document), safe=False)
+
+        # elif request.data.get('action') == 'listes_documents_chef_unite':
+        #     document = Document.objects.all().select_related('poste_comptable', 'piece').filter(poste_comptable__utilisateur__zone__nom_zone=request.data.get('zone')).values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee').order_by('-date_arrivee')
+        #     return JsonResponse(list(document), safe=False)
+
+        # elif request.data.get('action') == 'listes_documents_directeur':
+        #     document = Document.objects.all().values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee').order_by('-date_arrivee')
+        #     return JsonResponse(list(document), safe=False)
         
+
+
+        elif request.data.get('action') == 'listes_documents_auditeur':
+
+            # Récupérer tous les documents de l'utilisateur
+            documents_qs = Document.objects.filter(
+                poste_comptable__utilisateur_id=request.data.get('utilisateur')
+            ).select_related('poste_comptable', 'piece').order_by('-id')
+
+            # Construire un dictionnaire pour stocker la dernière version par document logique
+            latest_docs = {}
+            for doc in documents_qs:
+                # Extraire info_supp (après la virgule)
+                parts = doc.nom_fichier.split(', ')
+                info_supp = parts[1] if len(parts) > 1 else ''
+
+                key = (doc.piece.id, doc.exercice, doc.mois, info_supp)
+
+                # Garde le document avec la version max pour ce key
+                if key not in latest_docs or doc.version > latest_docs[key].version:
+                    latest_docs[key] = doc
+
+            # Préparer le résultat JSON
+            result = []
+            for doc in latest_docs.values():
+                result.append({
+                    'piece__nom_piece': doc.piece.nom_piece,
+                    'poste_comptable__nom_poste': doc.poste_comptable.nom_poste,
+                    'nom_fichier': doc.nom_fichier,
+                    'exercice': doc.exercice,
+                    'mois': doc.mois,
+                    'date_arrivee': doc.date_arrivee,
+                    'version': doc.version
+                })
+
+            return JsonResponse(result, safe=False)
+
+        elif request.data.get('action') == 'listes_documents_chef_unite':
+
+            # Récupérer tous les documents des postes comptables de la zone
+            documents_qs = Document.objects.filter(
+                poste_comptable__utilisateur__zone__nom_zone=request.data.get('zone')
+            ).select_related('poste_comptable', 'piece').order_by('-id')
+
+            # Construire un dictionnaire pour stocker la dernière version par document logique
+            latest_docs = {}
+            for doc in documents_qs:
+                # Extraire info_supp (après la virgule)
+                parts = doc.nom_fichier.split(', ')
+                info_supp = parts[1] if len(parts) > 1 else ''
+
+                key = (doc.piece.id, doc.exercice, doc.mois, info_supp)
+
+                # Garde le document avec la version max pour ce key
+                if key not in latest_docs or doc.version > latest_docs[key].version:
+                    latest_docs[key] = doc
+
+            # Préparer le résultat JSON
+            result = []
+            for doc in latest_docs.values():
+                result.append({
+                    'piece__nom_piece': doc.piece.nom_piece,
+                    'poste_comptable__nom_poste': doc.poste_comptable.nom_poste,
+                    'nom_fichier': doc.nom_fichier,
+                    'exercice': doc.exercice,
+                    'mois': doc.mois,
+                    'date_arrivee': doc.date_arrivee,
+                    'version': doc.version
+                })
+
+            return JsonResponse(result, safe=False)
+
         elif request.data.get('action') == 'listes_documents_directeur':
-            document = Document.objects.all().values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee')
-            return JsonResponse(list(document), safe=False)
+            # Récupérer tous les documents
+            documents_qs = Document.objects.all().select_related('poste_comptable', 'piece').order_by('-id')
+
+            # Construire un dictionnaire pour stocker la dernière version par document logique
+            latest_docs = {}
+            for doc in documents_qs:
+                # Extraire info_supp (après la virgule)
+                parts = doc.nom_fichier.split(', ')
+                info_supp = parts[1] if len(parts) > 1 else ''
+
+                key = (doc.piece.id, doc.exercice, doc.mois, info_supp)
+
+                # Garde le document avec la version max pour ce key
+                if key not in latest_docs or doc.version > latest_docs[key].version:
+                    latest_docs[key] = doc
+
+            # Préparer le résultat JSON
+            result = []
+            for doc in latest_docs.values():
+                result.append({
+                    'piece__nom_piece': doc.piece.nom_piece,
+                    'poste_comptable__nom_poste': doc.poste_comptable.nom_poste,
+                    'nom_fichier': doc.nom_fichier,
+                    'exercice': doc.exercice,
+                    'mois': doc.mois,
+                    'date_arrivee': doc.date_arrivee,
+                    'version': doc.version
+                })
+
+            return JsonResponse(result, safe=False)
+        
 
         # vue qui va compter le nombre de domcuments generale pour le tableau de bord
         elif request.data.get('action') == 'compter_nombre_documents_generale':
@@ -227,6 +405,7 @@ class DocumentView(APIView):
             return JsonResponse({'total_doc': nb_count})
         
           # vue qui va compter le nombre de domcuments par poste comptable pour le tableau de bord
+        
         elif request.data.get('action') == 'compter_nombre_documents_par_poste_comptable':
             nb_count = Document.objects.filter(poste_comptable__nom_poste=request.data.get('poste_comptable')).count()
             return JsonResponse({'total_doc': nb_count})
@@ -238,6 +417,8 @@ class DocumentView(APIView):
 
 # Transcription
 class TranscriptionView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
 
         if request.data.get('action') == 'ajouter_transcription':
@@ -249,11 +430,8 @@ class TranscriptionView(APIView):
                 try:
                     for i in objet:
 
-                        if objet[i] != 0:
+                        if objet[i] != 0 and objet[i] != "":
                             montant =  float(objet[i])
-
-                        # else:
-                        #     montant = 0
 
                             Transcription.objects.create(
                                 compte = Compte.objects.get(numero=i),
@@ -267,18 +445,12 @@ class TranscriptionView(APIView):
                     if objet != 0:
                         montant =  float(objet)
 
-                    # else:
-                    #     montant = 0
-
                         Transcription.objects.create(
                             nature = nature,
                             montant = montant,
                             document_id = request.data.get('id_doc')
                         )
-            Trace.objects.create(
-                utilisateur_id = request.data.get('utilisateur'),
-                action = f"a transcrit une pièce - {request.data.get('piece')}",
-            )
+
 
             return JsonResponse({"succes": "Les données ont été transcrises avec succès"})
         
@@ -320,7 +492,8 @@ class TranscriptionView(APIView):
                 document__piece__nom_piece=request.data.get('piece'), document__date_arrivee=request.data.get('date'),
                 document__mois=request.data.get('mois'),
                 document__exercice=request.data.get('exercice'),
-                document__poste_comptable__nom_poste = request.data.get('poste_comptable'),
+                document__poste_comptable__nom_poste=request.data.get('poste_comptable'),
+                document__version=request.data.get('version'),
                
                 ).exclude(montant=0).values(
                     'compte__numero', 
@@ -332,15 +505,87 @@ class TranscriptionView(APIView):
 
             return JsonResponse(list(transcription), safe=False)
         
+        # elif request.data.get('action') == 'analyser_transcription_sje':
+        #     transcription = Transcription.objects.filter(document__piece__nom_piece=request.data.get('piece'), document__poste_comptable__nom_poste=request.data.get('poste_comptable'), document__exercice=request.data.get('exercice'), nature__in=['solde', 'report']).values('document__nom_fichier', 'nature', 'montant')
+        #     return JsonResponse(list(transcription), safe=False)
+
         elif request.data.get('action') == 'analyser_transcription_sje':
-            transcription = Transcription.objects.filter(document__piece__nom_piece=request.data.get('piece'), document__poste_comptable__nom_poste=request.data.get('poste_comptable'), document__exercice=request.data.get('exercice'), nature__in=['solde', 'report']).values('document__nom_fichier', 'nature', 'montant')
-            return JsonResponse(list(transcription), safe=False)
+            piece_nom = request.data.get('piece')
+            poste_nom = request.data.get('poste_comptable')
+            exercice = request.data.get('exercice')
+
+            # Récupérer les documents correspondants aux critères
+            documents_qs = Document.objects.filter(
+                piece__nom_piece=piece_nom,
+                poste_comptable__nom_poste=poste_nom,
+                exercice=exercice
+            )
+
+            # Construire un dictionnaire pour stocker la dernière version par document logique
+            latest_docs = {}
+            for doc in documents_qs:
+                # Extraire info_supp (après la virgule)
+                parts = doc.nom_fichier.split(', ')
+                info_supp = parts[1] if len(parts) > 1 else ''
+
+                key = (doc.piece.id, doc.exercice, doc.mois, info_supp)
+
+                # Garde le document avec la version max pour ce key
+                if key not in latest_docs or doc.version > latest_docs[key].version:
+                    latest_docs[key] = doc
+
+            # Récupérer les transcriptions liées aux documents de dernière version
+            transcriptions = Transcription.objects.filter(
+                document__in=latest_docs.values(),
+                nature__in=['solde', 'report']
+            ).values(
+                'document__nom_fichier',
+                'nature',
+                'montant'
+            )
+
+            return JsonResponse(list(transcriptions), safe=False)
+
         
+        # elif request.data.get('action') == 'analyser_solde_anormale':
+
+        #     transcription = Transcription.objects.filter(document__piece__nom_piece=request.data.get('piece'), document__poste_comptable__nom_poste=request.data.get('poste_comptable'), document__nom_fichier__icontains=request.data.get('proprietaire'), nature__icontains='sld', compte__classe__in=[4, 5], document__mois=request.data.get('mois'), document__exercice=request.data.get('exercice')).values('document__nom_fichier', 'nature', 'montant', 'compte__numero', 'compte__classe', 'compte__solde_en_cours_exo', 'document__date_arrivee')
+
+        #     return JsonResponse(list(transcription), safe=False)
+
         elif request.data.get('action') == 'analyser_solde_anormale':
 
-            transcription = Transcription.objects.filter(document__piece__nom_piece=request.data.get('piece'), document__poste_comptable__nom_poste=request.data.get('poste_comptable'), document__nom_fichier__icontains=request.data.get('proprietaire'), nature__icontains='sld', compte__classe__in=[4, 5], document__mois=request.data.get('mois'), document__exercice=request.data.get('exercice')).values('document__nom_fichier', 'nature', 'montant', 'compte__numero', 'compte__classe', 'compte__solde_en_cours_exo', 'document__date_arrivee')
+            base = Transcription.objects.filter(
+                document__piece__nom_piece=request.data.get('piece'),
+                document__poste_comptable__nom_poste=request.data.get('poste_comptable'),
+                document__nom_fichier__icontains=request.data.get('proprietaire'),
+                nature__icontains='sld',
+                compte__classe__in=[4, 5],
+                document__mois=request.data.get('mois'),
+                document__exercice=request.data.get('exercice')
+            )
+
+            # 1) Sélection des dernières versions
+            last_versions = (
+                base.values('document__nom_fichier')
+                    .annotate(latest_date=Max('document__date_arrivee'))
+            )
+
+            # 2) Filtrer à nouveau pour obtenir la ligne correspondant à la dernière version
+            transcription = base.filter(
+                document__date_arrivee__in=[lv['latest_date'] for lv in last_versions]
+            ).values(
+                'document__nom_fichier',
+                'nature',
+                'montant',
+                'compte__numero',
+                'compte__classe',
+                'compte__solde_en_cours_exo',
+                'document__date_arrivee'
+            )
 
             return JsonResponse(list(transcription), safe=False)
+
 
 
     def get(self, request):
@@ -348,7 +593,10 @@ class TranscriptionView(APIView):
         return JsonResponse(serializers.serialize('json', transcription), safe=False)
 
 
+# Vue : TotalMontantTranscriptionFiltreeView
 class TotalMontantTranscriptionFiltreeView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
 
         if request.data.get('action') == 'analyse_equilibre_balance':
@@ -356,6 +604,19 @@ class TotalMontantTranscriptionFiltreeView(APIView):
             total = Total_montant_transcription_filtrees.objects.filter(nom_poste=request.data.get('poste_comptable'), nom_piece=request.data.get('piece'), nom_fichier__icontains=request.data.get('proprietaire'), mois=request.data.get('mois'), exercice=request.data.get('exercice')).values('date_arrivee', 'nom_fichier', 'nature', 'total')
             return JsonResponse(list(total), safe=False)
         
+        # if request.data.get('action') == 'verfication_solde_caisse':
+
+        #     # Récupère le dernier jour du mois
+        #     dernier_jour = calendar.monthrange(int(request.data.get('exercice')), int(request.data.get('mois')))[1]
+
+        #     # Crée un objet date correspondant au dernier jour du mois
+        #     date_sje = date(int(request.data.get('exercice')), int(request.data.get('mois')), dernier_jour)
+
+        #     solde_balance = Total_montant_transcription_filtrees.objects.filter(nom_poste=request.data.get('poste_comptable'), nom_piece='BOD', nom_fichier__icontains=request.data.get('proprietaire'), mois=request.data.get('mois'), exercice=request.data.get('exercice'), nature__icontains='SLD_C').values('date_arrivee', 'nom_fichier', 'nature', 'total')
+        #     encaisse_fin_du_mois_sje = Total_montant_transcription_filtrees.objects.filter(nom_poste=request.data.get('poste_comptable'), nom_piece='SJE', nature__icontains='solde', nom_fichier__icontains=date_sje).values('date_arrivee', 'nom_fichier', 'nature', 'total')
+
+        #     return JsonResponse({'balance': list(solde_balance), 'sje': list(encaisse_fin_du_mois_sje)})
+
         if request.data.get('action') == 'verfication_solde_caisse':
 
             # Récupère le dernier jour du mois
@@ -364,26 +625,118 @@ class TotalMontantTranscriptionFiltreeView(APIView):
             # Crée un objet date correspondant au dernier jour du mois
             date_sje = date(int(request.data.get('exercice')), int(request.data.get('mois')), dernier_jour)
 
-            solde_balance = Total_montant_transcription_filtrees.objects.filter(nom_poste=request.data.get('poste_comptable'), nom_piece='BOD', nom_fichier__icontains=request.data.get('proprietaire'), mois=request.data.get('mois'), exercice=request.data.get('exercice'), nature__icontains='SLD_C').values('date_arrivee', 'nom_fichier', 'nature', 'total')
-            encaisse_fin_du_mois_sje = Total_montant_transcription_filtrees.objects.filter(nom_poste=request.data.get('poste_comptable'), nom_piece='SJE', nature__icontains='solde', nom_fichier__icontains='2025-11-04').values('date_arrivee', 'nom_fichier', 'nature', 'total')
 
-            return JsonResponse({'balance': list(solde_balance), 'sje': list(encaisse_fin_du_mois_sje)})
+            # ========= 🔵 1. RÉCUPÉRER LES ENREGISTREMENTS FILTRÉS (BOD) =========
+            solde_balance_qs = Total_montant_transcription_filtrees.objects.filter(
+                nom_poste=request.data.get('poste_comptable'),
+                nom_piece='BOD',
+                nom_fichier__icontains=request.data.get('proprietaire'),
+                mois=request.data.get('mois'),
+                exercice=request.data.get('exercice'),
+                nature__icontains='SLD_C'
+            )
+
+            # Dictionnaire pour stocker la dernière version BOD
+            latest_bod = {}
+
+            for item in solde_balance_qs:
+                # Extraction info_supp depuis nom_fichier
+                parts = item.nom_fichier.split(', ')
+                info_supp = parts[1] if len(parts) > 1 else ''
+
+                key = (item.nom_piece, item.exercice, item.mois, info_supp)
+
+                if key not in latest_bod or item.version > latest_bod[key].version:
+                    latest_bod[key] = item
+
+            # Construction de la réponse JSON BOD
+            solde_balance = [{
+                'date_arrivee': v.date_arrivee,
+                'nom_fichier': v.nom_fichier,
+                'nature': v.nature,
+                'total': v.total
+            } for v in latest_bod.values()]
+
+
+
+            # ========= 🔵 2. RÉCUPÉRER LES ENREGISTREMENTS FILTRÉS (SJE) =========
+            encaisse_sje_qs = Total_montant_transcription_filtrees.objects.filter(
+                nom_poste=request.data.get('poste_comptable'),
+                nom_piece='SJE',
+                nature__icontains='solde',
+                nom_fichier__icontains=date_sje,
+            )
+
+            # Dictionnaire pour stocker la dernière version SJE
+            latest_sje = {}
+
+            for item in encaisse_sje_qs:
+                parts = item.nom_fichier.split(', ')
+                info_supp = parts[1] if len(parts) > 1 else ''
+
+                key = (item.nom_piece, item.exercice, item.mois, info_supp)
+
+                if key not in latest_sje or item.version > latest_sje[key].version:
+                    latest_sje[key] = item
+
+            # Construction de la réponse JSON SJE
+            encaisse_fin_du_mois_sje = [{
+                'date_arrivee': v.date_arrivee,
+                'nom_fichier': v.nom_fichier,
+                'nature': v.nature,
+                'total': v.total
+            } for v in latest_sje.values()]
+
+
+            # ========= 🔵 3. RETOUR =========
+            return JsonResponse({
+                'balance': solde_balance,
+                'sje': encaisse_fin_du_mois_sje
+            })
 
 
 # Compte
 class CompteView(APIView):
+    # Requete POST
     def post(self, request):
+
+        if request.data.get('action') == 'lister_tous_les_comptes':
+            comptes = Compte.objects.all().values(
+                'id',
+                'classe',
+                'poste',
+                'rubrique',
+                'numero',
+                'libelle',
+                'acte_reglementaire',
+                'solde_en_cours_exo',
+                'solde_fin_gest',
+                'type',
+                'proprietaire_id',
+                'created_at',
+                'updated_at',
+                'proprietaire__nom_proprietaire',
+            ).order_by('-id')
+            return JsonResponse(list(comptes), safe=False)
+
         if request.data.get('action') == 'get_comptes_regroupements':
             comptes = Compte.objects.filter(type='Regroupements').values('id', 'numero')
             # comptes_serialize = serializers.serialize('json', comptes)
             return JsonResponse(list(comptes), safe=False)
+        
         elif request.data.get('action') == 'create':
             if request.data.get('compte_regroupement') != "":
                 compte = Compte(
+                    classe=request.data.get('classe'),
+                    poste=request.data.get('poste'), 
+                    rubrique=request.data.get('rubrique'),
                     numero = request.data.get('numero'),
                     libelle = request.data.get('libelle'),
+                    acte_reglementaire=request.data.get('acte_reglementaire'),
+                    solde_en_cours_exo=request.data.get('solde_en_cours_exo'),
+                    solde_fin_gest=request.data.get('solde_fin_gest'),
                     type = request.data.get('type'),
-                    compte_regroupement_id = request.data.get('compte_regroupement')
+                    proprietaire_id = request.data.get('proprietaire')
                 )
                 compte.save()
             else:
@@ -393,78 +746,254 @@ class CompteView(APIView):
                     type = request.data.get('type')
                 )
                 compte.save()
-            return JsonResponse({"message": "Ajout effectuee avec succes"})
+            return JsonResponse({"succes": "Le compte a été ajouté avec succès"})
+        
         return HttpResponse({"message": None})
             
 
+    # Requete PUT
+    def put(self, request):
+        compte = Compte.objects.get(id=request.data.get('id'))
+        compte.classe = request.data.get('classe')
+        compte.poste = request.data.get('poste')
+        compte.rubrique = request.data.get('rubrique')
+        compte.numero = request.data.get('numero')
+        compte.libelle = request.data.get('libelle')
+        compte.acte_reglementaire = request.data.get('acte_reglementaire')
+        compte.solde_en_cours_exo = request.data.get('solde_en_cours_exo')
+        compte.solde_fin_gest = request.data.get('solde_fin_gest')
+        compte.type = request.data.get('type')
+        compte.proprietaire_id = request.data.get('proprietaire')
+        compte.save()
+        return JsonResponse({'succes': 'Le compte a été modifié avec succès'})
+
+    # Requete DELETE
+    def delete(self, request):
+        compte = Compte.objects.get(id=request.data.get('id'))
+        compte.delete()
+        return JsonResponse({'succes': 'Le compte a été supprimé avec succès'})
+
+    # Requete GET
     def get(self, request):
         comptes = Compte.objects.all().values('numero')
         # comptes_serialize = serializers.serialize('json', comptes)
         return JsonResponse(list(comptes), safe=False)
 
 
-# Trace
-class TraceView(APIView):
-    def get(self, request):
-        traces = Trace.objects.all().values('id', 'utilisateur_id', 'utilisateur__nom', 'utilisateur__prenom', 'action', 'created_at').order_by('id')
-        return JsonResponse(list(traces), safe=False)
-    
-
 # Anomalie
 class AnomalieView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    # Requete POST
     def post(self, request):
 
-        if(request.data.get('action') == 'ajouter_anomalie'):
-            data = request.data.get('data')  # DRF parse automatiquement le JSON
+        # Ajouter une anomalie
+        if request.data.get('action') == 'ajouter_anomalie':
+
+            data = request.data.get('data') or []  # Toujours une liste
+            type_analyse = request.data.get('type_analyse')
+            poste_comptable = request.data.get('poste_comptable')
+            exercice = request.data.get('exercice')
             inserted = 0
             skipped = 0
 
+            
+
+            # Extraire les descriptions envoyées
+            descriptions_envoyees = [
+                item.get('description')
+                for item in data
+                if item.get('description')
+            ]
+
+            if type_analyse == 'report_sje':
+                # ---- 🔵 MARQUER COMME RÉSOLUE selon type_analyse + poste_comptable ----
+                anomalies_a_resoudre = Anomalie.objects.filter(
+                    type_analyse=type_analyse,
+                    document__poste_comptable__nom_poste=poste_comptable,
+                    document__exercice=exercice
+                ).distinct()
+            else:
+                # ---- 🔵 MARQUER COMME RÉSOLUE selon type_analyse + poste_comptable ----
+                anomalies_a_resoudre = Anomalie.objects.filter(
+                    type_analyse=type_analyse,
+                    document__poste_comptable__nom_poste=poste_comptable,
+                    document__mois=request.data.get('mois'),
+                    document__piece__nom_piece=request.data.get('piece'),
+                    document__nom_fichier__icontains=request.data.get('proprietaire'),
+                    document__exercice=exercice
+                ).distinct()
+
+            # Si data contient des anomalies, on exclut celles envoyées
+            if descriptions_envoyees:
+                anomalies_a_resoudre = anomalies_a_resoudre.exclude(
+                    description__in=descriptions_envoyees
+                )
+
+            # Résolution
+            for anomalie in anomalies_a_resoudre:
+                if anomalie.statut != "Résolue":
+                    anomalie.statut = "Résolue"
+                    anomalie.save()
+
+                    # 🔥 Ajouter automatiquement une correction
+                    Correction.objects.create(
+                        anomalie=anomalie,
+                        commentaire="Mise à jour du pièce justificative"
+                    )
+
+            # ---- 🔵 TRAITER LES NOUVELLES ANOMALIES ----
             for item in data:
                 date_str = item.get('date')
                 description = item.get('description')
-                fichier_noms = item.get('fichier')
-                type_analyse = item.get('analyse')
+                fichier_noms = item.get('fichier', [])
+                type_analyse_item = item.get('analyse', type_analyse)
 
-                # Conversion de la date string en objet date
+                if not description or not date_str:
+                    skipped += 1
+                    continue
+
                 try:
                     date_anomalie = datetime.strptime(date_str, "%Y-%m-%d").date()
                 except (ValueError, TypeError):
                     skipped += 1
-                    continue 
+                    continue
 
-                try:
+                anomalie, created = Anomalie.objects.get_or_create(
+                    description=description,
+                    type_analyse=type_analyse_item,
+                    defaults={
+                        "date_anomalie": date_anomalie,
+                        "statut": "Nouvelle",
+                    }
+                )
 
-                    anomalie = Anomalie.objects.get(description=description)
-                    skipped += 1
-                    print("→ Anomalie déjà existante, ignorée")
+                # Ajouter les documents liés
+                for nom in fichier_noms:
+                    try:
+                        doc = Document.objects.get(
+                            nom_fichier=nom,
+                            poste_comptable__nom_poste=poste_comptable
+                        )
+                        anomalie.document.add(doc)
+                    except Document.DoesNotExist:
+                        print(f"⚠️ Document non trouvé pour poste_comptable {poste_comptable} : {nom}")
 
-                except Anomalie.DoesNotExist:
-
-                    anomalie = Anomalie.objects.create(
-                        date_anomalie=date_anomalie,
-                        description=description,
-                        statut="Nouveau",  # valeur par défaut
-                        type_analyse=type_analyse
-                    )
-
-                    
-                    for nom in fichier_noms:
-                        try:
-                            doc = Document.objects.get(nom_fichier=nom)
-                            anomalie.document.add(doc)
-                        except Document.DoesNotExist:
-                            print(f"⚠️ Document non trouvé : {nom}")
-
+                if created:
                     inserted += 1
-                
+                else:
+                    skipped += 1
 
-            return Response({
-                "status": "ok",
-                "inserted": inserted,
-                "skipped": skipped
-            }, status=status.HTTP_200_OK)
-    
+            return Response(
+                {"status": "ok", "inserted": inserted, "skipped": skipped},
+                status=status.HTTP_200_OK
+            )
+
+        #Exporter un rapport pdf
+        elif request.data.get('action') == 'exporter_rapport':
+            anomalie_id = request.data.get('anomalie') 
+
+            mois_en_lettres = {
+                "01": "Janvier",
+                "02": "Février",
+                "03": "Mars",
+                "04": "Avril",
+                "05": "Mai",
+                "06": "Juin",
+                "07": "Juillet",
+                "08": "Août",
+                "09": "Septembre",
+                "10": "Octobre",
+                "11": "Novembre",
+                "12": "Décembre"
+            }   
+
+            try:
+                anomalie = Anomalie.objects.get(pk=anomalie_id)
+            except Anomalie.DoesNotExist:
+                return JsonResponse({"error": "Anomalie introuvable"}, status=404)
+
+            # Récupérer les documents liés
+            documents = anomalie.document.all()
+            poste_comptable = None
+
+            # On récupère le poste comptable à partir du premier document
+            if documents.exists():
+                code_poste = getattr(documents[0].poste_comptable, "code_poste", "N/A")
+                nom_poste = getattr(documents[0].poste_comptable, "nom_poste", "N/A")
+                lieu = getattr(documents[0].poste_comptable, "lieu", "N/A")
+                poste = getattr(documents[0].poste_comptable, "poste", "N/A")
+                responsable = getattr(documents[0].poste_comptable, "responsable", "N/A")
+
+            # Génération PDF en mémoire
+            pdf = FPDF()
+            pdf.set_auto_page_break(auto=True, margin=15)
+            pdf.add_page()
+
+            pdf.set_font("Arial", 'B',size=14)
+            pdf.cell(200, 10, txt="RAPPORT D'ANOMALIE", ln=True, align='C')
+
+            pdf.ln(5)
+            pdf.set_font("Arial", size=12)
+            pdf.cell(200, 8, txt=f"Date anomalie : {anomalie.date_anomalie}", ln=True)
+            pdf.cell(200, 8, txt=f"Type d'analyse : {anomalie.type_analyse.replace('_', ' ').upper()}", ln=True)
+            pdf.multi_cell(0, 8, txt=f"Description : {anomalie.description or 'Aucune'}")
+            pdf.cell(200, 8, txt=f"Statut : {anomalie.statut}", ln=True)
+
+            pdf.ln(10)
+
+            pdf.set_font("Arial", size=12)
+            pdf.cell(0, 8, f"Poste comptable concerné : {nom_poste}", ln=True)
+            pdf.cell(0, 8, f"Code poste : {code_poste}", ln=True)
+            pdf.cell(0, 8, f"Lieu : {lieu}", ln=True)
+            pdf.cell(0, 8, f"Poste : {poste}", ln=True)
+            pdf.cell(0, 8, f"Responsable : {responsable}", ln=True)
+            pdf.ln(5)
+
+            pdf.ln(10)
+            pdf.set_font("Arial", size=12, style="B")
+            pdf.cell(200, 10, txt="Documents liés :", ln=True)
+
+            # Largeurs des colonnes
+            col1_width = 20  # Pièce
+            col2_width = 115  # Nom du fichier
+            col3_width = 35  # Mois
+            col4_width = 20  # Exercice
+            row_height = 8
+
+            # En-tête du tableau
+            pdf.set_font("Arial", "B", 11)
+            pdf.cell(col1_width, row_height, "Pièce", border=1, align="C")
+            pdf.cell(col2_width, row_height, "Nom du fichier", border=1, align="C")
+            pdf.cell(col3_width, row_height, "Mois", border=1, align="C")
+            pdf.cell(col4_width, row_height, "Exercice", border=1, align="C")
+            pdf.ln(row_height)
+
+            # Lignes du tableau
+            pdf.set_font("Arial", "", 11)
+            for doc in documents:
+                piece = getattr(doc.piece, "nom_piece", "N/A")
+                nom_fichier = doc.nom_fichier
+                mois_chiffre = doc.mois or "N/A"
+                mois = mois_en_lettres.get(mois_chiffre.zfill(2), "N/A")  # zfill pour ajouter un 0 si nécessaire
+                exercice = doc.exercice or "N/A"
+
+                pdf.cell(col1_width, row_height, piece, border=1, align="C")
+                pdf.cell(col2_width, row_height, nom_fichier, border=1, align="C")
+                pdf.cell(col3_width, row_height, mois, border=1, align="C")
+                pdf.cell(col4_width, row_height, exercice, border=1, align="C")
+                pdf.ln(row_height)
+
+            # Export en mémoire :
+            pdf_output = pdf.output(dest='S').encode('latin-1')
+
+            # Réponse HTTP → déclenche le téléchargement dans le navigateur
+            response = HttpResponse(pdf_output, content_type='application/pdf')
+            response['Content-Disposition'] = 'attachment; filename="rapport_anomalie.pdf"'
+
+            return response
+                
+        #Changer le statut des anomalies en cours
         elif(request.data.get('action') == 'changer_statut_anomalie_en_cours'):
             anomalies = request.data.get('anomalies')
 
@@ -475,17 +1004,23 @@ class AnomalieView(APIView):
                 
             return JsonResponse({'succes': str(anomalies.__len__()) + " anomalie(s) traitée(s)"})
 
+        # Compter le nombre total des anomalies
         elif(request.data.get('action') == 'compter_nombre_anomalies_generale'):
             nb_anomalies = Anomalie.objects.count()
             return JsonResponse({'total_anomalies': nb_anomalies})
         
+
+        # Compter le nombre total des anomalies resolues
         elif(request.data.get('action') == 'compter_nombre_anomalies_resolu'):
             nb_anomalies_resolu = Anomalie.objects.filter( Q(statut__icontains='résolu') | Q(statut__icontains='resolu')).count()
             return JsonResponse({'total_anomalies_resolu': nb_anomalies_resolu})
         
+
+        # Compter le nombre des anomalies resolues par postes comptables
         elif request.data.get('action') == 'compter_nombres_anomalies_resolu_par_poste_comptables':
             nb_anomalies_resolu = Anomalie.objects.filter( Q(statut__icontains='résolu') | Q(statut__icontains='resolu'), document__poste_comptable__nom_poste=request.data.get('poste_comptable')).count()
             return JsonResponse({'total_anomalies_resolu': nb_anomalies_resolu})
+
 
         # Cette vue va compter les nombres d'anomalies par mois
         elif(request.data.get('action') == 'recuperer_nombre_anomalies_par_mois'):
@@ -497,6 +1032,7 @@ class AnomalieView(APIView):
                
             return JsonResponse(list(anomalies), safe=False)
         
+
         # Cette vue va compter les nombres d'anomalies par mois par poste comptable
         elif(request.data.get('action') == 'recuperer_nombre_anomalies_par_mois_par_comptable'):
             anomalies = []
@@ -507,7 +1043,8 @@ class AnomalieView(APIView):
                
             return JsonResponse(list(anomalies), safe=False)
 
-        #Ce vue va compter les nombres d'anomalies resolues par mois
+
+        #Cette vue va compter les nombres d'anomalies resolues par mois
         elif request.data.get('action') == 'recuperer_nombres_anomalies_resolues_par_mois':
             anomalies = []
             all_month = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
@@ -516,8 +1053,9 @@ class AnomalieView(APIView):
                 anomalies.append(nb_anomalies)
                 # print('nombre', nb_anomalies)
             return JsonResponse(list(anomalies), safe=False)
-        
-        #Ce vue va compter les nombres d'anomalies resolues par mois par poste comptable
+
+
+        #Cette vue va compter les nombres d'anomalies resolues par mois par poste comptable
         elif request.data.get('action') == 'recuperer_nombres_anomalies_resolues_par_mois_par_poste_comptable':
             anomalies = []
             all_month = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
@@ -527,11 +1065,14 @@ class AnomalieView(APIView):
                 # print('nombre', nb_anomalies)
             return JsonResponse(list(anomalies), safe=False)
 
+
         # cette vue va compter le nombres d'anomalies par poste comptable
         elif request.data.get('action') == 'compter_nombres_anomalies_par_poste_comptable':
             nb_anomalies = Anomalie.objects.filter(document__poste_comptable__nom_poste=request.data.get('poste_comptable')).count()
             return JsonResponse({'total_anomalies': nb_anomalies})
 
+
+    # Requete GET
     def get(self, request):
         # Optionnel : renvoyer toutes les anomalies
         anomalies = Anomalie.objects.annotate(
@@ -556,6 +1097,8 @@ class AnomalieView(APIView):
 
 # Correction
 class CorrectionView(APIView):
+
+    # Requete POST
     def post(self, request):
 
         if(request.data.get('action') == 'ajouter_correction'):
@@ -566,12 +1109,12 @@ class CorrectionView(APIView):
             ) 
 
             anomalie = Anomalie.objects.get(id=request.data.get('anomalie'))
-            anomalie.statut = 'Résolu'
+            anomalie.statut = 'Résolue'
 
             correction.save()
             anomalie.save()
 
-            return JsonResponse({"succes": "L'anomalie est considerée comme résolu"})
+            return JsonResponse({"succes": "L'anomalie est considerée comme résolue"})
 
         elif request.data.get('action') == 'voir_detail_resolution_anomalie':
             resolution = Correction.objects.filter(anomalie_id=request.data.get('anomalie')).values('commentaire')

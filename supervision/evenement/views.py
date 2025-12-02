@@ -30,13 +30,13 @@ def create(request):
 
     agenda.save()
     
-    message = { 'message': 'Ajout effectuee avec succes' }
+    message = { 'succes': 'Evènement enregistré avec succès' }
     return JsonResponse(message)
 
 
 @api_view(["POST"])
 def read(request):
-    evenements = Agenda.objects.filter(utilisateur_id=request.data.get("utilisateur_id"))
+    evenements = Agenda.objects.filter(utilisateur_id=request.data.get("utilisateur_id")).order_by('-date_evenement')[:6]
     # print(serializers.serialize("json", evenements))
     return JsonResponse(json.loads(serializers.serialize("json", evenements)), safe=False)
 
