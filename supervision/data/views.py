@@ -1117,5 +1117,5 @@ class CorrectionView(APIView):
             return JsonResponse({"succes": "L'anomalie est considerée comme résolue"})
 
         elif request.data.get('action') == 'voir_detail_resolution_anomalie':
-            resolution = Correction.objects.filter(anomalie_id=request.data.get('anomalie')).values('commentaire')
+            resolution = Correction.objects.filter(anomalie_id=request.data.get('anomalie')).values('commentaire', 'created_at')
             return JsonResponse(list(resolution), safe=False)

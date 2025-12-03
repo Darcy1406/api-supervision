@@ -57,24 +57,28 @@ MIDDLEWARE = [
     'audit.middleware.CurrentUserMiddleware',
 ]
 
+USE_TZ = True
+TIME_ZONE = 'Indian/Antananarivo'
+
+
 # Pour autoriser le frontend React
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",
-# ]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+]
 
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOW_ALL_ORIGINS = True # Pour tester
 
-ALLOWED_HOSTS = [
-    "127.0.0.1",        # localhost
-    "localhost",
-    "192.168.0.105",    # IP de ta machine hôte
-]
+# ALLOWED_HOSTS = [
+#     "127.0.0.1",        # localhost
+#     "localhost",
+#     "192.168.0.105",    # IP de ta machine hôte
+# ]
 
 
 CSRF_TRUSTED_ORIGINS = [
-    "http://192.168.0.108:3000",
+    "http://localhost:3000",
 ]
 
 CSRF_COOKIE_HTTPONLY = False

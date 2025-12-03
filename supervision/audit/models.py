@@ -10,6 +10,7 @@ class AuditLog(models.Model):
     action = models.CharField(max_length=255)
     modele = models.CharField(max_length=255)
     objet_id = models.CharField(max_length=50, null=True, blank=True)
+    document_filename = models.CharField(max_length=255, null=True, blank=True)
     ancienne_valeur = models.JSONField(null=True, blank=True)
     nouvelle_valeur = models.JSONField(null=True, blank=True)
     date_action = models.DateTimeField(auto_now_add=True)
