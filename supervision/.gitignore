@@ -1,0 +1,44 @@
+# ============================
+# ENVIRONNEMENT VIRTUEL
+# ============================
+venv/
+
+# ============================
+# DJANGO
+# ============================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Base SQLite (ne jamais versionner sauf cas particulier)
+db.sqlite3
+
+# Dossiers de fichiers générés
+/media/
+static/
+staticfiles/
+
+# ============================
+# LOGS
+# ============================
+*.log
+
+# ============================
+# ENV / CONFIG
+# ============================
+.env
+*.env
+
+# ============================
+# AUTRES
+# ============================
+# Fichiers temporaires
+*.tmp
+*.temp
+
+# Vos fichiers non destinés au repo
+test.pdf
+
+# VSCode
+.vscode/
