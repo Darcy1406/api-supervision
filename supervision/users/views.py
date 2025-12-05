@@ -27,28 +27,29 @@ class LoginView(APIView):
     authentication_classes = []
     def post(self, request):
 
-        token = request.data.get("captchaToken")
-        secret_key = "6LeVF8srAAAAAEQBQ-2NnWOrU_rCgGp7RrESw7FF"
-        url = "https://www.google.com/recaptcha/api/siteverify"
-        data = {"secret": secret_key, "response": token}
+        # token = request.data.get("captchaToken")
+        # secret_key = "6LeVF8srAAAAAEQBQ-2NnWOrU_rCgGp7RrESw7FF"
+        # url = "https://www.google.com/recaptcha/api/siteverify"
+        # data = {"secret": secret_key, "response": token}
 
-        r = requests.post(url, data=data)
-        result = r.json()
+        # r = requests.post(url, data=data)
+        # result = r.json()
 
-        if result.get("success"):
+        # if result.get("success"):
 
-            username = request.data.get("identifiant")
-            password = request.data.get("password")
+        username = request.data.get("identifiant")
+        password = request.data.get("password")
 
-            user = authenticate(request, identifiant=username, password=password)
+        user = authenticate(request, identifiant=username, password=password)
 
-            if user is not None:
-                login(request, user)
-                # sessionid cookie sera géré automatiquement par Django
-                texte = {"detail": "Connecté", "identifiant": user.identifiant}
-                return Response(texte)
-                # return JsonResponse({"detail": "Logged in", "username": user.identifiant})
+        if user is not None:
+            login(request, user)
+            # sessionid cookie sera géré automatiquement par Django
+            texte = {"detail": "Connecté", "identifiant": user.identifiant}
+            return Response(texte)
+            # return JsonResponse({"detail": "Logged in", "username": user.identifiant})
             return JsonResponse({"error": "Incorrecte: Veuillez verifier vos identifiants et ressayer"})
+    
         else:
             return JsonResponse({"error": "Veuillez valider le reCAPTCHA"})
 
