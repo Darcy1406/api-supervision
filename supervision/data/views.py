@@ -24,18 +24,11 @@ from django.http import HttpResponse
 
 
 # Create your views here.
-def index(request):
-    fichiers = Document.objects.all()
-    f = open("test.pdf", 'wb')
-    f.write(fichiers[0].contenu)
-    f.close()
-    # json = serializers.serialize("json", fichiers)
-    return HttpResponse(fichiers[0].contenu)
-
 
 # Proprietaire
 class ProprietaireView(APIView):
     
+    # Requete GET : Va afficher toutes les proprietaires de comptes
     def get(self, request):
         proprio = Proprietaire.objects.all().values('id', 'nom_proprietaire')
         return JsonResponse(list(proprio), safe=False)
@@ -43,8 +36,11 @@ class ProprietaireView(APIView):
 
 # Piece
 class PieceView(APIView):
+
+    # Requete POST
     def post(self, request):
 
+        # Ce script sert a ajouter une piece
         if request.data.get('action') == 'ajouter_piece':
         
             poste_comptable = request.data.get('poste_comptable')
@@ -62,11 +58,13 @@ class PieceView(APIView):
 
             return JsonResponse({"succes": "La pièce a été ajoutée avec succès"})
         
+        # Cette script sert a recuperer la periode d'une piece
         elif request.data.get('action') == 'recuperer_periode_piece':
             periode = Piece.objects.filter(nom_piece=request.data.get('piece')).values_list('periode')
             return JsonResponse(list(periode), safe=False)
 
 
+    # Requete PUT (Modifier une piece)
     def put(self, request):
 
         poste_comptable = request.data.get('poste_comptable')
@@ -86,6 +84,7 @@ class PieceView(APIView):
         return JsonResponse({"succes": "La pièce a été modifiée avec succès"})
 
 
+    # Requete DELETE (Supprimer une piece)
     def delete(self, request):
         id = request.data.get('id')
         if not id: 
@@ -99,14 +98,17 @@ class PieceView(APIView):
             return JsonResponse({"error": "Pièce non trouvée"}, status=404)
 
 
-
+    # Requete GET (Obtenir le nom de toutes les pieces)
     def get(self, request):
         pieces = Piece.objects.all().order_by('nom_piece')
         pieces_serialize = serializers.serialize('json', pieces)
         return JsonResponse(json.loads(pieces_serialize), safe=False)
     
 
+# Exercice
 class ExerciceView(APIView):
+
+    # Requete POST (Ajouter un exercice)
     def post(self, request):
         exercice = Exercice(
             annee=request.data.get('annee')
@@ -114,14 +116,19 @@ class ExerciceView(APIView):
         exercice.save()
         return JsonResponse({'succes': 'Nouveau exercice ajouté avec succès'})
 
+    # Requete GET (Lister tous les exercices par ordre decroissant de l'id)
     def get(self, request):
         exercices = Exercice.objects.all().values('id', 'annee').order_by('-id')
         return JsonResponse(list(exercices), safe=False)
 
+
 # Liaison piece - compte
 class PieceCompteView(APIView):
 
+    # Requete POST
     def post(self, request):
+
+        # Ajouter une liaison entre une piece et un compte
         if request.data.get("action") == 'ajouter':
             nature = request.data.get('nature')
 
@@ -135,13 +142,15 @@ class PieceCompteView(APIView):
 
             return JsonResponse({'succes': 'La liaison entre le compte et la pièce a ete établie avec succès'})
         
+        # Filtrer les liaisons par type de piece
         elif request.data.get("action") == "filtrer_liaison":
-            # piece_et_compte = PieceCompte.objects.filter(nature__icontains=request.data.get('nature')).select_related('compte').distinct().values('compte__numero')
+           
             piece_et_compte = PieceCompte.objects.filter(piece=Piece.objects.get(nom_piece=request.data.get('piece'))).select_related('compte').distinct().values('compte__numero', 'nature')
 
             return JsonResponse(list(piece_et_compte), safe=False)
     
 
+    # Requete PUT (modifier une liaison entre une piece et un compte)
     def put(self, request):
         nature = request.data.get('nature')
 
@@ -155,7 +164,7 @@ class PieceCompteView(APIView):
 
         return JsonResponse({'succes': 'Modification éffectuée avec succès'})
 
-
+    # Requete GET (Lister toutes les liaisons entre les pieces et les comptes)
     def get(self, request):
         piece_compte = PieceCompte.objects.select_related('compte', 'piece').values(
             'id',
@@ -172,8 +181,10 @@ class PieceCompteView(APIView):
 # Document
 class DocumentView(APIView):
 
+    # Requete POST
     def post(self, request):
 
+        # Ce script sert ajouter un document
         if request.data.get("action") == 'ajouter_un_document':
             contenu = request.FILES.get("fichier")
             poste_comptable_nom = request.data.get("poste_comptable")
@@ -220,6 +231,7 @@ class DocumentView(APIView):
             document.save()
             return JsonResponse({"id_fichier": document.id, "version": document.version})
 
+        # Ce script sert a telecharger document
         elif request.data.get("action") == 'telecharger_document':
             import mimetypes
             import urllib.parse
@@ -253,8 +265,7 @@ class DocumentView(APIView):
 
             return response
 
-
-
+        # Ce script sert a rechercher un document (Non utilisé)
         elif request.data.get('action') == 'rechercher_un_document':
             piece = request.data.get("piece", "").strip()
             poste_comptable = request.data.get("poste_comptable", "").strip()
@@ -281,21 +292,8 @@ class DocumentView(APIView):
 
             # Conversion JSON pour renvoyer à React
             return JsonResponse(list(document), safe=False)
-    
-        # elif request.data.get('action') == 'listes_documents_auditeur':
-        #     document = Document.objects.all().select_related('poste_comptable', 'piece').filter(poste_comptable__utilisateur_id=request.data.get('utilisateur')).values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee').order_by('-date_arrivee')
-        #     return JsonResponse(list(document), safe=False)
 
-        # elif request.data.get('action') == 'listes_documents_chef_unite':
-        #     document = Document.objects.all().select_related('poste_comptable', 'piece').filter(poste_comptable__utilisateur__zone__nom_zone=request.data.get('zone')).values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee').order_by('-date_arrivee')
-        #     return JsonResponse(list(document), safe=False)
-
-        # elif request.data.get('action') == 'listes_documents_directeur':
-        #     document = Document.objects.all().values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee').order_by('-date_arrivee')
-        #     return JsonResponse(list(document), safe=False)
-        
-
-
+        # Ce script va lister les documents pour un Auditeur
         elif request.data.get('action') == 'listes_documents_auditeur':
 
             # Récupérer tous les documents de l'utilisateur
@@ -331,6 +329,7 @@ class DocumentView(APIView):
 
             return JsonResponse(result, safe=False)
 
+        # Ce script va lister les documents pour un Chef d'unite
         elif request.data.get('action') == 'listes_documents_chef_unite':
 
             # Récupérer tous les documents des postes comptables de la zone
@@ -366,6 +365,7 @@ class DocumentView(APIView):
 
             return JsonResponse(result, safe=False)
 
+        # Ce script va lister les documents pour un Directeur
         elif request.data.get('action') == 'listes_documents_directeur':
             # Récupérer tous les documents
             documents_qs = Document.objects.all().select_related('poste_comptable', 'piece').order_by('-id')
@@ -398,18 +398,17 @@ class DocumentView(APIView):
 
             return JsonResponse(result, safe=False)
         
-
-        # vue qui va compter le nombre de domcuments generale pour le tableau de bord
+        # Ce script va compter le nombre de domcuments generale pour le tableau de bord
         elif request.data.get('action') == 'compter_nombre_documents_generale':
             nb_count = Document.objects.count()
             return JsonResponse({'total_doc': nb_count})
         
-          # vue qui va compter le nombre de domcuments par poste comptable pour le tableau de bord
-        
+        # Ce script va compter le nombre de domcuments par poste comptable pour le tableau de bord
         elif request.data.get('action') == 'compter_nombre_documents_par_poste_comptable':
             nb_count = Document.objects.filter(poste_comptable__nom_poste=request.data.get('poste_comptable')).count()
             return JsonResponse({'total_doc': nb_count})
 
+    # Ce script va afficher toutes les documents sans filtre (non utilisé)
     def get(self, request):
             document = Document.objects.all().select_related('poste_comptable', 'piece').values('piece__nom_piece', 'poste_comptable__nom_poste', 'nom_fichier', 'exercice', 'mois', 'date_arrivee')
             return JsonResponse(list(document), safe=False)
@@ -419,8 +418,10 @@ class DocumentView(APIView):
 class TranscriptionView(APIView):
     permission_classes = [IsAuthenticated]
 
+    # Requete POST
     def post(self, request):
 
+        # Ce script va ajouter une transcription des donnees
         if request.data.get('action') == 'ajouter_transcription':
             natures = request.data.get("natures")
 
@@ -454,6 +455,7 @@ class TranscriptionView(APIView):
 
             return JsonResponse({"succes": "Les données ont été transcrises avec succès"})
         
+        # Ce script va ajouter une transcription pour une Balance (BOD/BOV)
         elif request.data.get('action') == 'ajouter_transcription_balance':
             fichier = request.FILES.get('fichier')
             df = pd.read_excel(fichier)
@@ -486,6 +488,7 @@ class TranscriptionView(APIView):
 
             return JsonResponse({"succes": "Les données ont été transcrises avec succès"})
 
+        # Ce script va recuperer les donnees transcrites
         elif request.data.get('action') == 'voir_detail_transcription':
 
             transcription = Transcription.objects.filter(
@@ -505,10 +508,7 @@ class TranscriptionView(APIView):
 
             return JsonResponse(list(transcription), safe=False)
         
-        # elif request.data.get('action') == 'analyser_transcription_sje':
-        #     transcription = Transcription.objects.filter(document__piece__nom_piece=request.data.get('piece'), document__poste_comptable__nom_poste=request.data.get('poste_comptable'), document__exercice=request.data.get('exercice'), nature__in=['solde', 'report']).values('document__nom_fichier', 'nature', 'montant')
-        #     return JsonResponse(list(transcription), safe=False)
-
+        # Ce script va recuperer toutes les SJE derniere version dans la BD d'un poste comptable pour un exercice pour effectuer l'analyse
         elif request.data.get('action') == 'analyser_transcription_sje':
             piece_nom = request.data.get('piece')
             poste_nom = request.data.get('poste_comptable')
@@ -546,13 +546,7 @@ class TranscriptionView(APIView):
 
             return JsonResponse(list(transcriptions), safe=False)
 
-        
-        # elif request.data.get('action') == 'analyser_solde_anormale':
-
-        #     transcription = Transcription.objects.filter(document__piece__nom_piece=request.data.get('piece'), document__poste_comptable__nom_poste=request.data.get('poste_comptable'), document__nom_fichier__icontains=request.data.get('proprietaire'), nature__icontains='sld', compte__classe__in=[4, 5], document__mois=request.data.get('mois'), document__exercice=request.data.get('exercice')).values('document__nom_fichier', 'nature', 'montant', 'compte__numero', 'compte__classe', 'compte__solde_en_cours_exo', 'document__date_arrivee')
-
-        #     return JsonResponse(list(transcription), safe=False)
-
+        # Ce script va recuperer les donnees utiles pour l'analyse de solde anormale
         elif request.data.get('action') == 'analyser_solde_anormale':
 
             base = Transcription.objects.filter(
@@ -586,8 +580,7 @@ class TranscriptionView(APIView):
 
             return JsonResponse(list(transcription), safe=False)
 
-
-
+    # Requete GET: Va recuperer toutes les transcriptions d'un TSDMT (non utilisé)
     def get(self, request):
         transcription = Transcription.objects.filter(document__piece__nom_piece='TSDMT')
         return JsonResponse(serializers.serialize('json', transcription), safe=False)
@@ -1071,8 +1064,67 @@ class AnomalieView(APIView):
             nb_anomalies = Anomalie.objects.filter(document__poste_comptable__nom_poste=request.data.get('poste_comptable')).count()
             return JsonResponse({'total_anomalies': nb_anomalies})
 
+        # Liste des anomalies pour un auditeur
+        elif request.data.get('action') == 'lister_les_anomalies_pour_un_auditeur':
 
-    # Requete GET
+            utilisateur_id = request.data.get('utilisateur_id')
+
+            anomalies = (
+                Anomalie.objects
+                .filter(document__poste_comptable__utilisateur_id=utilisateur_id)
+                .annotate(
+                    fichiers=ArrayAgg(
+                        F('document__nom_fichier'),
+                        distinct=True
+                    )
+                )
+                .values(
+                    'id',
+                    'date_anomalie',
+                    'document__poste_comptable__nom_poste',
+                    'document__exercice',
+                    'description',
+                    'statut',
+                    'type_analyse',
+                    'created_at',
+                    'fichiers'
+                )
+            )
+
+            return JsonResponse(list(anomalies), safe=False)
+        
+        # Liste des anomalies pour un chef d'unite
+        elif request.data.get('action') == 'lister_des_aomalies_pour_un_chef_unite':
+
+            zone = request.data.get('zone')
+
+            anomalies = (
+                Anomalie.objects
+                .filter(document__poste_comptable__utilisateur__zone__nom_zone=zone)
+                .annotate(
+                    fichiers=ArrayAgg(
+                        F('document__nom_fichier'),
+                        distinct=True
+                    )
+                )
+                .values(
+                    'id',
+                    'date_anomalie',
+                    'document__poste_comptable__nom_poste',
+                    'document__exercice',
+                    'description',
+                    'statut',
+                    'type_analyse',
+                    'created_at',
+                    'fichiers'
+                )
+            )
+
+            return JsonResponse(list(anomalies), safe=False)
+
+
+
+    # Requete GET Renvoyer toutes les anomalies (Pour un directeur)
     def get(self, request):
         # Optionnel : renvoyer toutes les anomalies
         anomalies = Anomalie.objects.annotate(
@@ -1101,6 +1153,7 @@ class CorrectionView(APIView):
     # Requete POST
     def post(self, request):
 
+        # Ce script va ajouter une correction d'une anomalie
         if(request.data.get('action') == 'ajouter_correction'):
 
             correction = Correction(
@@ -1116,6 +1169,7 @@ class CorrectionView(APIView):
 
             return JsonResponse({"succes": "L'anomalie est considerée comme résolue"})
 
+        # Ce script va afficher la correction d'une anomalie selectionné
         elif request.data.get('action') == 'voir_detail_resolution_anomalie':
             resolution = Correction.objects.filter(anomalie_id=request.data.get('anomalie')).values('commentaire', 'created_at')
             return JsonResponse(list(resolution), safe=False)

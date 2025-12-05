@@ -2,7 +2,7 @@ from django.urls import path
 from  . import views
 
 urlpatterns = [
-    path('', views.index, name='index'),
+    # path('', views.index, name='index'),
 
     # Url - Proprietaire
     path('proprietaire/get', views.ProprietaireView.as_view(), name='obtenir_la_liste_des_proprietaires'),
@@ -46,7 +46,7 @@ urlpatterns = [
 
     # Url - anomalie
     path('anomalie/insert', views.AnomalieView.as_view(), name='inserer_des_anomalies'),
-    path('anomalie/get', views.AnomalieView.as_view(), name='lister_des_anomalies'),
+    path('anomalie/liste', views.AnomalieView.as_view(), name='lister_des_anomalies'),
     path('anomalie/change_state', views.AnomalieView.as_view(), name='change_le_statut_des_anomalies'),
     path('anomalie/count', views.AnomalieView.as_view(), name='lister_des_anomalies'),
     path('anomalie/rapport', views.AnomalieView.as_view(), name='exporter_rapport_anomalie'),

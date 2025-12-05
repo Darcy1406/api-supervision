@@ -19,9 +19,3 @@ class AuditLogView(APIView):
         
         # Retourner la réponse JSON
         return Response(serializer.data)
-
-
-# class AuditLogView(APIView):
-#     queryset = AuditLog.objects.all().order_by('-date_action')
-#     serializer_class = AuditLogSerializer
-#     permission_classes = [IsAuthenticated]  # tu peux retirer ça pour les tests

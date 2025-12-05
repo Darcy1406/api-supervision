@@ -45,7 +45,6 @@ class AuditLogSerializer(serializers.ModelSerializer):
         
     def get_date_action(self, obj):
         # Conversion automatique en heure locale Madagascar
-        # return localtime(obj.date_action).strftime("%Y-%m-%d %H:%M:%S")
         return localtime(obj.date_action).isoformat()
 
 
