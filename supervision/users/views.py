@@ -50,8 +50,8 @@ class LoginView(APIView):
             # return JsonResponse({"detail": "Logged in", "username": user.identifiant})
             return JsonResponse({"error": "Incorrecte: Veuillez verifier vos identifiants et ressayer"})
     
-        else:
-            return JsonResponse({"error": "Veuillez valider le reCAPTCHA"})
+        # else:
+        #     return JsonResponse({"error": "Veuillez valider le reCAPTCHA"})
 
 
 # Logout (Deconnexion)
