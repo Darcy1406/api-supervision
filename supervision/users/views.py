@@ -48,7 +48,7 @@ class LoginView(APIView):
             texte = {"detail": "Connecté", "identifiant": user.identifiant}
             return Response(texte)
             # return JsonResponse({"detail": "Logged in", "username": user.identifiant})
-            return JsonResponse({"error": "Incorrecte: Veuillez verifier vos identifiants et ressayer"})
+        return JsonResponse({"error": "Incorrecte: Veuillez verifier vos identifiants et ressayer"})
     
         # else:
         #     return JsonResponse({"error": "Veuillez valider le reCAPTCHA"})
@@ -69,6 +69,7 @@ class UserView(APIView):
 
             auth = Authentification.objects.filter(identifiant=request.user.identifiant, password=request.user.password).values(
                 'id',
+                'utilisateur_id',
                 'utilisateur__nom',
                 'utilisateur__prenom',
                 'utilisateur__fonction',
