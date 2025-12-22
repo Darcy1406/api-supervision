@@ -10,6 +10,7 @@ urlpatterns = [
     # Url - Piece
     path('piece/create', views.PieceView.as_view(), name='create_piece'),
     path('piece/get_pieces', views.PieceView.as_view(), name='get_pieces'),
+    path('piece/count', views.PieceView.as_view(), name='obtenir_nombre_total_pieces'),
     path('piece/update', views.PieceView.as_view(), name='update_piece'),
     path('piece/delete', views.PieceView.as_view(), name='delete_piece'),
     path('piece/periode', views.PieceView.as_view(), name='recuperer_la_periode_la_piece'),
@@ -29,6 +30,7 @@ urlpatterns = [
     path('transcription/create', views.TranscriptionView.as_view(), name='create_transcription'),
     path('transcription/liste', views.TranscriptionView.as_view(), name='liste_transcription'),
     path('transcription/data_analyse', views.TranscriptionView.as_view(), name='analyser_transcription_par_type'),
+    path('transcription/count', views.TranscriptionView.as_view(), name='compter_le_nombre_total_de_transcription'),
 
     # Url - Liaison Piece - Compte
     path('piece_compte/creer', views.PieceCompteView.as_view(), name='creer_liaison_piece_compte'),
@@ -41,6 +43,7 @@ urlpatterns = [
     path('compte/update', views.CompteView.as_view(), name='update_compte'),
     path('compte/delete', views.CompteView.as_view(), name='delete_compte'),
     path('compte/get_comptes', views.CompteView.as_view(), name='get_comptes'),
+    path('compte/count', views.CompteView.as_view(), name='obtenir_nombre_total_des_comptes'),
     path('compte/get_comptes_regroupements', views.CompteView.as_view(), name='get_comptes'),
     path('compte/get_number', views.CompteView.as_view(), name='get_number_compte'),
 

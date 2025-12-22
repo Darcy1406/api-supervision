@@ -174,6 +174,10 @@ class UserView(APIView):
             )
             return JsonResponse(list(users), safe=False)
 
+        if request.data.get('action') == 'obtenir_nombre_total_utilisateurs':
+            nb_count = Utilisateur.objects.count()
+            return JsonResponse({'total_utilisateur': nb_count})
+
         if request.data.get('action') == 'recuperer_auditeurs_zone':
             auditeurs = Utilisateur.objects.filter(fonction__icontains='auditeur', zone__id=request.data.get('zone')).values('id', 'nom', 'prenom', 'zone_id')
             return JsonResponse(list(auditeurs), safe=False)
@@ -237,20 +241,6 @@ class PosteComptableView(APIView):
             poste_comptable.save()
             return JsonResponse({'succes': 'Poste comptable ajoutée avec succès'})
 
-        # if request.data.get('action') == 'modifier_poste_comptable':
-        #     poste_comptable = Poste_comptable.objects.get(id=request.data.get('id'))
-
-        #     poste_comptable.code_poste = request.data.get('code_poste')
-        #     poste_comptable.nom_poste = request.data.get('nom_poste')
-        #     poste_comptable.lieu = request.data.get('lieu')
-        #     poste_comptable.poste = request.data.get('poste')
-        #     poste_comptable.responsable = request.data.get('responsable')
-        #     poste_comptable.utilisateur_id = request.data.get('auditeur')
-
-        #     poste_comptable.save()
-
-        #     return JsonResponse({'succes': 'Poste comptable modifiée avec succès'})
-
         if request.data.get('action') == 'afficher_les_postes_comptables':
             poste = Poste_comptable.objects.filter(utilisateur_id=request.data.get('user_id')).values("nom_poste", 'utilisateur_id', 'utilisateur__zone_id')
             return JsonResponse(list(poste), safe=False)
@@ -279,6 +269,10 @@ class PosteComptableView(APIView):
             poste = Poste_comptable.objects.filter(utilisateur_id=request.data.get('utilisateur_id'), pieces__in=pieces).distinct().values("id", "nom_poste")
             return JsonResponse(list(poste), safe=False)
         
+        elif request.data.get('action') == 'obtenir_nombre_total_poste_comptables':
+            nb_count = Poste_comptable.objects.count()
+            return JsonResponse({'total_poste_comptables': nb_count})
+
         elif request.data.get('action') == 'recuperer_les_infos_des_postes_comptables':
             poste = Poste_comptable.objects.all().values(
                 'id',

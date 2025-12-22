@@ -12,6 +12,7 @@ urlpatterns = [
     path('create_user', views.UserView.as_view(), name='create_user'),
     path('update_user', views.UserView.as_view(), name='update_user'),
     path('liste', views.UserView.as_view(), name='liste_de_tous_les_utilisateurs_du_systeme'),
+    path('count', views.UserView.as_view(), name='obtenir_nombre_total_des_utilisateurs'),
     path('delete',views.UserView.as_view(), name='supprimer_un_utilisateur'),
     path('create_authentification', views.UserView.as_view(), name='creer_une_authentification_pour_un_utilisateur'),
 
@@ -26,6 +27,7 @@ urlpatterns = [
     path("poste_comptable/delete", views.PosteComptableView.as_view(), name="supprimer_un_poste_comptable"),
     path("poste_comptable/get", views.PosteComptableView.as_view(), name="api-poste-comptable-get"),
     path("poste_comptable/all", views.PosteComptableView.as_view(), name="liste-des-poste-comptables"),
+    path("poste_comptable/count", views.PosteComptableView.as_view(), name="obtenir_nombre_total_des_utilisateurs"),
     path("poste_comptable/type", views.PosteComptableView.as_view(), name="liste-de-tous-les-types-postes-comptables"),
     path("poste_comptable/selectionner_poste_piece", views.PosteComptableView.as_view(), name="selectionner-tous-les-postes-lies-au-piece"),
 ]

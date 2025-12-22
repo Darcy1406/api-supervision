@@ -63,6 +63,9 @@ class PieceView(APIView):
             periode = Piece.objects.filter(nom_piece=request.data.get('piece')).values_list('periode')
             return JsonResponse(list(periode), safe=False)
 
+        elif request.data.get('action') == 'obtenir_nombre_total_pieces':
+            nb_count = Piece.objects.count()
+            return JsonResponse({'total_pieces': nb_count})
 
     # Requete PUT (Modifier une piece)
     def put(self, request):
@@ -580,6 +583,15 @@ class TranscriptionView(APIView):
 
             return JsonResponse(list(transcription), safe=False)
 
+        elif request.data.get('action') == 'compter_nombre_total_transcription':
+            nb_count = Transcription.objects.count()
+            return JsonResponse({'total_transcription': nb_count})
+        
+        elif request.data.get('action') == 'compter_nombre_total_transcription_par_poste_comptable':
+            nb_count = Transcription.objects.filter(document__poste_comptable__nom_poste=request.data.get('poste_comptable')).count()
+            return JsonResponse({'total_transcription': nb_count})
+
+
     # Requete GET: Va recuperer toutes les transcriptions d'un TSDMT (non utilisé)
     def get(self, request):
         transcription = Transcription.objects.filter(document__piece__nom_piece='TSDMT')
@@ -712,6 +724,10 @@ class CompteView(APIView):
             ).order_by('-id')
             return JsonResponse(list(comptes), safe=False)
 
+        if request.data.get('action') == 'obtenir_nombre_total_comptes':
+            nb_count = Compte.objects.count()
+            return JsonResponse({'total_comptes': nb_count})
+
         if request.data.get('action') == 'get_comptes_regroupements':
             comptes = Compte.objects.filter(type='Regroupements').values('id', 'numero')
             # comptes_serialize = serializers.serialize('json', comptes)
@@ -741,7 +757,7 @@ class CompteView(APIView):
                 compte.save()
             return JsonResponse({"succes": "Le compte a été ajouté avec succès"})
         
-        return HttpResponse({"message": None})
+        # return HttpResponse({"message": None})
             
 
     # Requete PUT
