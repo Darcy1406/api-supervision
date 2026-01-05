@@ -182,7 +182,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'supervision',
         'USER': 'supervision_user',
-        'PASSWORD': 'admin',
+        'PASSWORD': 'passwordfort',
         'HOST': 'localhost',
         'PORT': '5432'
     }
