@@ -195,30 +195,25 @@ class DocumentView(APIView):
             exercice = request.data.get("exercice")
             mois = request.data.get("mois")
             info_supp_nouveau = request.data.get("info_supp")
-
             # Récupération de la pièce et du poste comptable
             poste_comptable = Poste_comptable.objects.get(nom_poste=poste_comptable_nom)
             piece = Piece.objects.get(nom_piece=piece_nom)
-
             # Chercher la dernière version du document existant avec le même info_supp
             documents_existants = Document.objects.filter(
                 piece=piece,
                 exercice=exercice,
                 mois=mois
             )
-
             # Extraire les documents avec le même info_supp
             documents_meme_info = [
                 doc for doc in documents_existants
                 if len(doc.nom_fichier.split(", ")) > 1 and doc.nom_fichier.split(", ")[1] == info_supp_nouveau
             ]
-
             if documents_meme_info:
                 # Récupérer la version max
                 version = max(doc.version for doc in documents_meme_info) + 1
             else:
                 version = 1
-
             # Créer le nouveau document avec la version correcte
             document = Document(
                 nom_fichier=f"{request.data.get('nom_fichier')}, {info_supp_nouveau}",
@@ -324,6 +319,7 @@ class DocumentView(APIView):
                     'piece__nom_piece': doc.piece.nom_piece,
                     'poste_comptable__nom_poste': doc.poste_comptable.nom_poste,
                     'nom_fichier': doc.nom_fichier,
+                    'type': doc.type,
                     'exercice': doc.exercice,
                     'mois': doc.mois,
                     'date_arrivee': doc.date_arrivee,
@@ -360,6 +356,7 @@ class DocumentView(APIView):
                     'piece__nom_piece': doc.piece.nom_piece,
                     'poste_comptable__nom_poste': doc.poste_comptable.nom_poste,
                     'nom_fichier': doc.nom_fichier,
+                    'type': doc.type,
                     'exercice': doc.exercice,
                     'mois': doc.mois,
                     'date_arrivee': doc.date_arrivee,
@@ -393,6 +390,7 @@ class DocumentView(APIView):
                     'piece__nom_piece': doc.piece.nom_piece,
                     'poste_comptable__nom_poste': doc.poste_comptable.nom_poste,
                     'nom_fichier': doc.nom_fichier,
+                    'type': doc.type,
                     'exercice': doc.exercice,
                     'mois': doc.mois,
                     'date_arrivee': doc.date_arrivee,
@@ -401,14 +399,14 @@ class DocumentView(APIView):
 
             return JsonResponse(result, safe=False)
         
-        # Ce script va compter le nombre de domcuments generale pour le tableau de bord
+        # Ce script va compter le nombre de domcuments generale par annee pour le tableau de bord
         elif request.data.get('action') == 'compter_nombre_documents_generale':
-            nb_count = Document.objects.count()
+            nb_count = Document.objects.filter(exercice=datetime.now().year).count()
             return JsonResponse({'total_doc': nb_count})
         
-        # Ce script va compter le nombre de domcuments par poste comptable pour le tableau de bord
+        # Ce script va compter le nombre de domcuments par poste comptable et par annee pour le tableau de bord
         elif request.data.get('action') == 'compter_nombre_documents_par_poste_comptable':
-            nb_count = Document.objects.filter(poste_comptable__nom_poste=request.data.get('poste_comptable')).count()
+            nb_count = Document.objects.filter(poste_comptable__nom_poste=request.data.get('poste_comptable'), exercice=request.data.get('exercice')).count()
             return JsonResponse({'total_doc': nb_count})
 
     # Ce script va afficher toutes les documents sans filtre (non utilisé)
@@ -471,9 +469,7 @@ class TranscriptionView(APIView):
 
             # Filtrer les montants valides
             df_filtered = df_melted[df_melted['MONTANT'].notna() & (df_melted['MONTANT'] != 0)]
-
             balance = []
-
             for _, row in df_filtered.iterrows():
                 compte_obj = Compte.objects.filter(numero=row['LECR_CPT_GENERAL']).first()
                 if not compte_obj:
@@ -583,12 +579,14 @@ class TranscriptionView(APIView):
 
             return JsonResponse(list(transcription), safe=False)
 
+        # Ce script va recuperer le nombre total de transcription par annee
         elif request.data.get('action') == 'compter_nombre_total_transcription':
-            nb_count = Transcription.objects.count()
+            nb_count = Transcription.objects.filter(document__exercice=datetime.now().year).count()
             return JsonResponse({'total_transcription': nb_count})
         
+        # Ce script va recuperer le nombre total de transcription par poste comptable et par annee
         elif request.data.get('action') == 'compter_nombre_total_transcription_par_poste_comptable':
-            nb_count = Transcription.objects.filter(document__poste_comptable__nom_poste=request.data.get('poste_comptable')).count()
+            nb_count = Transcription.objects.filter(document__poste_comptable__nom_poste=request.data.get('poste_comptable'), document__exercice=request.data.get('exercice')).count()
             return JsonResponse({'total_transcription': nb_count})
 
 
@@ -604,11 +602,44 @@ class TotalMontantTranscriptionFiltreeView(APIView):
 
     def post(self, request):
 
+        # Recuperer les donnees pour l'analyse de l'equilibre d'une balance
         if request.data.get('action') == 'analyse_equilibre_balance':
 
-            total = Total_montant_transcription_filtrees.objects.filter(nom_poste=request.data.get('poste_comptable'), nom_piece=request.data.get('piece'), nom_fichier__icontains=request.data.get('proprietaire'), mois=request.data.get('mois'), exercice=request.data.get('exercice')).values('date_arrivee', 'nom_fichier', 'nature', 'total')
+            base_queryset = Total_montant_transcription_filtrees.objects.filter(
+                nom_poste=request.data.get('poste_comptable'),
+                nom_piece=request.data.get('piece'),
+                nom_fichier__icontains=request.data.get('proprietaire'),
+                mois=request.data.get('mois'),
+                exercice=request.data.get('exercice')
+            )
+
+            # Récupérer la date la plus recente par document
+            last_versions = (
+                base_queryset
+                .values('nom_fichier')
+                .annotate(latest_date=Max('date_arrivee'))
+            )
+
+            # Ne garder que les dernieres versions
+            total = base_queryset.filter(
+                date_arrivee__in=[lv['latest_date'] for lv in last_versions]
+            ).values(
+                'date_arrivee',
+                'nom_fichier',
+                'nature',
+                'total'
+            )
+
             return JsonResponse(list(total), safe=False)
-        
+
+
+
+        # if request.data.get('action') == 'analyse_equilibre_balance':
+
+        #     total = Total_montant_transcription_filtrees.objects.filter(nom_poste=request.data.get('poste_comptable'), nom_piece=request.data.get('piece'), nom_fichier__icontains=request.data.get('proprietaire'), mois=request.data.get('mois'), exercice=request.data.get('exercice')).values('date_arrivee', 'nom_fichier', 'nature', 'total')
+        #     return JsonResponse(list(total), safe=False)
+
+
         # if request.data.get('action') == 'verfication_solde_caisse':
 
         #     # Récupère le dernier jour du mois
@@ -631,7 +662,7 @@ class TotalMontantTranscriptionFiltreeView(APIView):
             date_sje = date(int(request.data.get('exercice')), int(request.data.get('mois')), dernier_jour)
 
 
-            # ========= 🔵 1. RÉCUPÉRER LES ENREGISTREMENTS FILTRÉS (BOD) =========
+            # RÉCUPÉRER LES ENREGISTREMENTS FILTRÉS (BOD)
             solde_balance_qs = Total_montant_transcription_filtrees.objects.filter(
                 nom_poste=request.data.get('poste_comptable'),
                 nom_piece='BOD',
@@ -664,7 +695,7 @@ class TotalMontantTranscriptionFiltreeView(APIView):
 
 
 
-            # ========= 🔵 2. RÉCUPÉRER LES ENREGISTREMENTS FILTRÉS (SJE) =========
+            # RÉCUPÉRER LES ENREGISTREMENTS FILTRÉS (SJE)
             encaisse_sje_qs = Total_montant_transcription_filtrees.objects.filter(
                 nom_poste=request.data.get('poste_comptable'),
                 nom_piece='SJE',
@@ -798,32 +829,27 @@ class AnomalieView(APIView):
 
         # Ajouter une anomalie
         if request.data.get('action') == 'ajouter_anomalie':
-
             data = request.data.get('data') or []  # Toujours une liste
             type_analyse = request.data.get('type_analyse')
             poste_comptable = request.data.get('poste_comptable')
             exercice = request.data.get('exercice')
             inserted = 0
             skipped = 0
-
-            
-
             # Extraire les descriptions envoyées
             descriptions_envoyees = [
                 item.get('description')
                 for item in data
                 if item.get('description')
             ]
-
             if type_analyse == 'report_sje':
-                # ---- 🔵 MARQUER COMME RÉSOLUE selon type_analyse + poste_comptable ----
+                # MARQUER COMME RÉSOLUE selon type_analyse + poste_comptable
                 anomalies_a_resoudre = Anomalie.objects.filter(
                     type_analyse=type_analyse,
                     document__poste_comptable__nom_poste=poste_comptable,
                     document__exercice=exercice
                 ).distinct()
             else:
-                # ---- 🔵 MARQUER COMME RÉSOLUE selon type_analyse + poste_comptable ----
+                # MARQUER COMME RÉSOLUE selon type_analyse + poste_comptable
                 anomalies_a_resoudre = Anomalie.objects.filter(
                     type_analyse=type_analyse,
                     document__poste_comptable__nom_poste=poste_comptable,
@@ -832,42 +858,36 @@ class AnomalieView(APIView):
                     document__nom_fichier__icontains=request.data.get('proprietaire'),
                     document__exercice=exercice
                 ).distinct()
-
             # Si data contient des anomalies, on exclut celles envoyées
             if descriptions_envoyees:
                 anomalies_a_resoudre = anomalies_a_resoudre.exclude(
                     description__in=descriptions_envoyees
                 )
-
             # Résolution
             for anomalie in anomalies_a_resoudre:
                 if anomalie.statut != "Résolue":
                     anomalie.statut = "Résolue"
                     anomalie.save()
 
-                    # 🔥 Ajouter automatiquement une correction
+                    # Ajouter automatiquement une correction
                     Correction.objects.create(
                         anomalie=anomalie,
                         commentaire="Mise à jour du pièce justificative"
                     )
-
-            # ---- 🔵 TRAITER LES NOUVELLES ANOMALIES ----
+            # TRAITER LES NOUVELLES ANOMALIES
             for item in data:
                 date_str = item.get('date')
                 description = item.get('description')
                 fichier_noms = item.get('fichier', [])
                 type_analyse_item = item.get('analyse', type_analyse)
-
                 if not description or not date_str:
                     skipped += 1
                     continue
-
                 try:
                     date_anomalie = datetime.strptime(date_str, "%Y-%m-%d").date()
                 except (ValueError, TypeError):
                     skipped += 1
                     continue
-
                 anomalie, created = Anomalie.objects.get_or_create(
                     description=description,
                     type_analyse=type_analyse_item,
@@ -876,8 +896,7 @@ class AnomalieView(APIView):
                         "statut": "Nouvelle",
                     }
                 )
-
-                # Ajouter les documents liés
+                # Ajouter les documents liés à l'anomalie
                 for nom in fichier_noms:
                     try:
                         doc = Document.objects.get(
@@ -886,21 +905,19 @@ class AnomalieView(APIView):
                         )
                         anomalie.document.add(doc)
                     except Document.DoesNotExist:
-                        print(f"⚠️ Document non trouvé pour poste_comptable {poste_comptable} : {nom}")
-
+                        print(f"Document non trouvé pour poste_comptable {poste_comptable} : {nom}")
                 if created:
                     inserted += 1
                 else:
                     skipped += 1
-
             return Response(
                 {"status": "ok", "inserted": inserted, "skipped": skipped},
                 status=status.HTTP_200_OK
             )
 
-        #Exporter un rapport pdf
+        
         elif request.data.get('action') == 'exporter_rapport':
-            anomalie_id = request.data.get('anomalie') 
+            anomalie_id = request.data.get('anomalie')
 
             mois_en_lettres = {
                 "01": "Janvier",
@@ -915,62 +932,76 @@ class AnomalieView(APIView):
                 "10": "Octobre",
                 "11": "Novembre",
                 "12": "Décembre"
-            }   
+            }
+
+            # 🔧 CORRECTIF ENCODAGE FPDF
+            def clean_text(text):
+                if text is None:
+                    return ""
+                return (
+                    str(text)
+                    .replace("\u202f", " ")  # espace insécable fine
+                    .replace("\u00a0", " ")  # espace insécable
+                )
 
             try:
                 anomalie = Anomalie.objects.get(pk=anomalie_id)
             except Anomalie.DoesNotExist:
                 return JsonResponse({"error": "Anomalie introuvable"}, status=404)
 
-            # Récupérer les documents liés
             documents = anomalie.document.all()
-            poste_comptable = None
 
-            # On récupère le poste comptable à partir du premier document
             if documents.exists():
                 code_poste = getattr(documents[0].poste_comptable, "code_poste", "N/A")
                 nom_poste = getattr(documents[0].poste_comptable, "nom_poste", "N/A")
                 lieu = getattr(documents[0].poste_comptable, "lieu", "N/A")
                 poste = getattr(documents[0].poste_comptable, "poste", "N/A")
                 responsable = getattr(documents[0].poste_comptable, "responsable", "N/A")
+            else:
+                code_poste = nom_poste = lieu = poste = responsable = "N/A"
 
-            # Génération PDF en mémoire
+            # Génération PDF
             pdf = FPDF()
             pdf.set_auto_page_break(auto=True, margin=15)
             pdf.add_page()
 
-            pdf.set_font("Arial", 'B',size=14)
-            pdf.cell(200, 10, txt="RAPPORT D'ANOMALIE", ln=True, align='C')
+            pdf.set_font("Arial", 'B', 14)
+            pdf.cell(200, 10, clean_text("RAPPORT D'ANOMALIE"), ln=True, align='C')
 
             pdf.ln(5)
             pdf.set_font("Arial", size=12)
-            pdf.cell(200, 8, txt=f"Date anomalie : {anomalie.date_anomalie}", ln=True)
-            pdf.cell(200, 8, txt=f"Type d'analyse : {anomalie.type_analyse.replace('_', ' ').upper()}", ln=True)
-            pdf.multi_cell(0, 8, txt=f"Description : {anomalie.description or 'Aucune'}")
-            pdf.cell(200, 8, txt=f"Statut : {anomalie.statut}", ln=True)
+            pdf.cell(200, 8, clean_text(f"Date anomalie : {anomalie.date_anomalie}"), ln=True)
+            pdf.cell(
+                200,
+                8,
+                clean_text(f"Type d'analyse : {anomalie.type_analyse.replace('_', ' ').upper()}"),
+                ln=True
+            )
+            pdf.multi_cell(
+                0,
+                8,
+                clean_text(f"Description : {anomalie.description or 'Aucune'}")
+            )
+            pdf.cell(200, 8, clean_text(f"Statut : {anomalie.statut}"), ln=True)
 
             pdf.ln(10)
-
             pdf.set_font("Arial", size=12)
-            pdf.cell(0, 8, f"Poste comptable concerné : {nom_poste}", ln=True)
-            pdf.cell(0, 8, f"Code poste : {code_poste}", ln=True)
-            pdf.cell(0, 8, f"Lieu : {lieu}", ln=True)
-            pdf.cell(0, 8, f"Poste : {poste}", ln=True)
-            pdf.cell(0, 8, f"Responsable : {responsable}", ln=True)
-            pdf.ln(5)
+            pdf.cell(0, 8, clean_text(f"Poste comptable concerné : {nom_poste}"), ln=True)
+            pdf.cell(0, 8, clean_text(f"Code poste : {code_poste}"), ln=True)
+            pdf.cell(0, 8, clean_text(f"Lieu : {lieu}"), ln=True)
+            pdf.cell(0, 8, clean_text(f"Poste : {poste}"), ln=True)
+            pdf.cell(0, 8, clean_text(f"Responsable : {responsable}"), ln=True)
 
             pdf.ln(10)
-            pdf.set_font("Arial", size=12, style="B")
-            pdf.cell(200, 10, txt="Documents liés :", ln=True)
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(200, 10, clean_text("Documents liés :"), ln=True)
 
-            # Largeurs des colonnes
-            col1_width = 20  # Pièce
-            col2_width = 115  # Nom du fichier
-            col3_width = 35  # Mois
-            col4_width = 20  # Exercice
+            col1_width = 20
+            col2_width = 115
+            col3_width = 35
+            col4_width = 20
             row_height = 8
 
-            # En-tête du tableau
             pdf.set_font("Arial", "B", 11)
             pdf.cell(col1_width, row_height, "Pièce", border=1, align="C")
             pdf.cell(col2_width, row_height, "Nom du fichier", border=1, align="C")
@@ -978,29 +1009,27 @@ class AnomalieView(APIView):
             pdf.cell(col4_width, row_height, "Exercice", border=1, align="C")
             pdf.ln(row_height)
 
-            # Lignes du tableau
             pdf.set_font("Arial", "", 11)
             for doc in documents:
                 piece = getattr(doc.piece, "nom_piece", "N/A")
                 nom_fichier = doc.nom_fichier
                 mois_chiffre = doc.mois or "N/A"
-                mois = mois_en_lettres.get(mois_chiffre.zfill(2), "N/A")  # zfill pour ajouter un 0 si nécessaire
+                mois = mois_en_lettres.get(mois_chiffre.zfill(2), "N/A")
                 exercice = doc.exercice or "N/A"
 
-                pdf.cell(col1_width, row_height, piece, border=1, align="C")
-                pdf.cell(col2_width, row_height, nom_fichier, border=1, align="C")
-                pdf.cell(col3_width, row_height, mois, border=1, align="C")
-                pdf.cell(col4_width, row_height, exercice, border=1, align="C")
+                pdf.cell(col1_width, row_height, clean_text(piece), border=1, align="C")
+                pdf.cell(col2_width, row_height, clean_text(nom_fichier), border=1)
+                pdf.cell(col3_width, row_height, clean_text(mois), border=1, align="C")
+                pdf.cell(col4_width, row_height, clean_text(exercice), border=1, align="C")
                 pdf.ln(row_height)
 
-            # Export en mémoire :
             pdf_output = pdf.output(dest='S').encode('latin-1')
 
-            # Réponse HTTP → déclenche le téléchargement dans le navigateur
             response = HttpResponse(pdf_output, content_type='application/pdf')
             response['Content-Disposition'] = 'attachment; filename="rapport_anomalie.pdf"'
 
             return response
+
                 
         #Changer le statut des anomalies en cours
         elif(request.data.get('action') == 'changer_statut_anomalie_en_cours'):
@@ -1015,39 +1044,44 @@ class AnomalieView(APIView):
 
         # Compter le nombre total des anomalies
         elif(request.data.get('action') == 'compter_nombre_anomalies_generale'):
-            nb_anomalies = Anomalie.objects.count()
+            nb_anomalies = Anomalie.objects.filter(document__exercice=datetime.now().year).count()
+            return JsonResponse({'total_anomalies': nb_anomalies})
+        
+        # Compter le nombre total des anomalies par poste comptable et par annee
+        elif(request.data.get('action') == 'compter_nombres_anomalies_par_poste_comptable'):
+            nb_anomalies = Anomalie.objects.filter(document__poste_comptable__nom_poste=request.data.get('poste_comptable'), document__exercice=request.data.get('exercice')).count()
             return JsonResponse({'total_anomalies': nb_anomalies})
         
 
         # Compter le nombre total des anomalies resolues
         elif(request.data.get('action') == 'compter_nombre_anomalies_resolu'):
-            nb_anomalies_resolu = Anomalie.objects.filter( Q(statut__icontains='résolu') | Q(statut__icontains='resolu')).count()
+            nb_anomalies_resolu = Anomalie.objects.filter( Q(statut__icontains='résolu') | Q(statut__icontains='resolu'), document__exercice=datetime.now().year).count()
             return JsonResponse({'total_anomalies_resolu': nb_anomalies_resolu})
         
 
-        # Compter le nombre des anomalies resolues par postes comptables
+        # Compter le nombre des anomalies resolues par poste comptable et par annee
         elif request.data.get('action') == 'compter_nombres_anomalies_resolu_par_poste_comptables':
-            nb_anomalies_resolu = Anomalie.objects.filter( Q(statut__icontains='résolu') | Q(statut__icontains='resolu'), document__poste_comptable__nom_poste=request.data.get('poste_comptable')).count()
+            nb_anomalies_resolu = Anomalie.objects.filter( Q(statut__icontains='résolu') | Q(statut__icontains='resolu'), document__poste_comptable__nom_poste=request.data.get('poste_comptable'), document__exercice=request.data.get('exercice')).count()
             return JsonResponse({'total_anomalies_resolu': nb_anomalies_resolu})
 
 
-        # Cette vue va compter les nombres d'anomalies par mois
+        # Cette vue va compter les nombres d'anomalies detectees par mois
         elif(request.data.get('action') == 'recuperer_nombre_anomalies_par_mois'):
             anomalies = []
             all_month = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
             for month in all_month:
-                nb_anomalies = Anomalie.objects.filter(created_at__month=month).count()
+                nb_anomalies = Anomalie.objects.filter(created_at__month=month, created_at__year=datetime.now().year).count()
                 anomalies.append(nb_anomalies)
                
             return JsonResponse(list(anomalies), safe=False)
         
 
-        # Cette vue va compter les nombres d'anomalies par mois par poste comptable
+        # Cette vue va compter les nombres d'anomalies par mois par poste comptable et par annee
         elif(request.data.get('action') == 'recuperer_nombre_anomalies_par_mois_par_comptable'):
             anomalies = []
             all_month = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
             for month in all_month:
-                nb_anomalies = Anomalie.objects.filter(created_at__month=month, document__poste_comptable__nom_poste=request.data.get('poste_comptable')).count()
+                nb_anomalies = Anomalie.objects.filter(created_at__month=month, document__poste_comptable__nom_poste=request.data.get('poste_comptable'), created_at__year=request.data.get('exercice')).count()
                 anomalies.append(nb_anomalies)
                
             return JsonResponse(list(anomalies), safe=False)
@@ -1058,27 +1092,21 @@ class AnomalieView(APIView):
             anomalies = []
             all_month = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
             for month in all_month:
-                nb_anomalies = Anomalie.objects.filter( Q(statut__icontains='résolu') | Q(statut__icontains='resolu'), created_at__month=month).count()
+                nb_anomalies = Anomalie.objects.filter( Q(statut__icontains='résolu') | Q(statut__icontains='resolu'), created_at__month=month, created_at__year=datetime.now().year).count()
                 anomalies.append(nb_anomalies)
                 # print('nombre', nb_anomalies)
             return JsonResponse(list(anomalies), safe=False)
 
 
-        #Cette vue va compter les nombres d'anomalies resolues par mois par poste comptable
+        #Cette vue va compter les nombres d'anomalies resolues par mois par poste comptable et par annee
         elif request.data.get('action') == 'recuperer_nombres_anomalies_resolues_par_mois_par_poste_comptable':
             anomalies = []
             all_month = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
             for month in all_month:
-                nb_anomalies = Anomalie.objects.filter( Q(statut__icontains='résolu') | Q(statut__icontains='resolu'), created_at__month=month, document__poste_comptable__nom_poste=request.data.get('poste_comptable') ).count()
+                nb_anomalies = Anomalie.objects.filter( Q(statut__icontains='résolu') | Q(statut__icontains='resolu'), created_at__month=month, document__poste_comptable__nom_poste=request.data.get('poste_comptable'), created_at__year=request.data.get('exercice')).count()
                 anomalies.append(nb_anomalies)
                 # print('nombre', nb_anomalies)
             return JsonResponse(list(anomalies), safe=False)
-
-
-        # cette vue va compter le nombres d'anomalies par poste comptable
-        elif request.data.get('action') == 'compter_nombres_anomalies_par_poste_comptable':
-            nb_anomalies = Anomalie.objects.filter(document__poste_comptable__nom_poste=request.data.get('poste_comptable')).count()
-            return JsonResponse({'total_anomalies': nb_anomalies})
 
         # Liste des anomalies pour un auditeur
         elif request.data.get('action') == 'lister_les_anomalies_pour_un_auditeur':

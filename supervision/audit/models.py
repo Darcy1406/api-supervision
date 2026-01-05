@@ -1,9 +1,9 @@
 from django.db import models
-from django.conf import settings  # ✅ pour pointer vers ton AUTH_USER_MODEL
+from django.conf import settings
 
 class AuditLog(models.Model):
     utilisateur = models.ForeignKey(
-        settings.AUTH_USER_MODEL,  # ✅ dynamique selon AUTH_USER_MODEL
+        settings.AUTH_USER_MODEL, 
         on_delete=models.SET_NULL,
         null=True
     )

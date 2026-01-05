@@ -37,13 +37,20 @@ class LoginView(APIView):
 
         # if result.get("success"):
 
-        username = request.data.get("identifiant")
+        identifiant = request.data.get("identifiant")
         password = request.data.get("password")
 
-        user = authenticate(request, identifiant=username, password=password)
+        # print('idnetifiant ' + identifiant)
+        # print('password ' + password)
+
+        user = authenticate(request, username=identifiant, password=password)
 
         if user is not None:
             login(request, user)
+
+            # TEST : On vérifie si Django voit l'utilisateur tout de suite
+            print(f"Connexion réussie pour : {request.user.identifiant}")
+            print(f"Session ID : {request.session.session_key}")
             # sessionid cookie sera géré automatiquement par Django
             texte = {"detail": "Connecté", "identifiant": user.identifiant}
             return Response(texte)
@@ -65,6 +72,7 @@ class UserView(APIView):
 
     # Requete GET
     def get(self, request):
+        print(f'request.user {request.user.is_authenticated}')
         if request.user.is_authenticated:
 
             auth = Authentification.objects.filter(identifiant=request.user.identifiant, password=request.user.password).values(

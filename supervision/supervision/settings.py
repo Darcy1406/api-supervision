@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'evenement.apps.EvenementConfig',
     'corsheaders',
     'rest_framework',
+    'django_extensions',
 ]
 
 MIDDLEWARE = [
@@ -57,11 +58,13 @@ MIDDLEWARE = [
     'audit.middleware.CurrentUserMiddleware',
 ]
 
+APPEND_SLASH = False
+
 USE_TZ = True
 TIME_ZONE = 'Indian/Antananarivo'
 
 
-# Pour autoriser le frontend React
+# # Pour autoriser le frontend React (CORS)
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
 ]
@@ -70,22 +73,18 @@ CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOW_ALL_ORIGINS = True # Pour tester
 
-# ALLOWED_HOSTS = [
-#     "127.0.0.1",        # localhost
-#     "localhost",
-#     "192.168.0.105",    # IP de ta machine hôte
-# ]
 
+# # ---- CSRF ----
+CSRF_COOKIE_HTTPONLY = False  # OBLIGATOIRE pour React
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = False   # OK en local
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
 ]
 
-CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SAMESITE = "Lax"
-CSRF_COOKIE_SECURE = False
 
-# Sessions
+# # ---- Sessions ----
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 SESSION_COOKIE_NAME = "sessionid"
 SESSION_COOKIE_HTTPONLY = True
@@ -95,6 +94,7 @@ SESSION_COOKIE_AGE = 60 * 60 * 24 * 14   # 2 semaines
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 
+# ---- Configuration Email ----
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587

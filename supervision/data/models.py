@@ -12,6 +12,20 @@ class Piece(models.Model):
     poste_comptable = models.ManyToManyField(Poste_comptable, related_name="pieces")
 
 
+# Model : Document
+class Document(models.Model):
+    exercice = models.CharField(max_length=10, null=True)
+    mois = models.CharField(max_length=2, null=True)
+    nom_fichier = models.CharField(max_length=255)
+    type = models.CharField(max_length=10, null=True, blank=True)
+    contenu = models.BinaryField()
+    date_arrivee = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    poste_comptable = models.ForeignKey(Poste_comptable, on_delete=models.CASCADE, related_name='poste_comptable_documents')
+    piece = models.ForeignKey(Piece, on_delete=models.CASCADE, related_name='piece_documents')
+    version = models.IntegerField(default=1)
+
+
 #Model : Exercice
 class Exercice(models.Model):
     annee = models.CharField(max_length=5, unique=True)
@@ -57,6 +71,7 @@ class Total_montant_transcription_filtrees(models.Model):
         db_table = 'total_montant_transcription_filtrees'
 
 
+
 # Model : Liste entre Piece - Compte
 class PieceCompte(models.Model):
     piece = models.ForeignKey(Piece, on_delete=models.CASCADE, related_name='liaison_comptes')
@@ -66,18 +81,6 @@ class PieceCompte(models.Model):
     updated_at = models.DateField(auto_now=True, null=True)
 
 
-# Model : Document
-class Document(models.Model):
-    exercice = models.CharField(max_length=10, null=True)
-    mois = models.CharField(max_length=2, null=True)
-    nom_fichier = models.CharField(max_length=255)
-    type = models.CharField(max_length=10, null=True, blank=True)
-    contenu = models.BinaryField()
-    date_arrivee = models.DateField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    poste_comptable = models.ForeignKey(Poste_comptable, on_delete=models.CASCADE, related_name='poste_comptable_documents')
-    piece = models.ForeignKey(Piece, on_delete=models.CASCADE, related_name='piece_documents')
-    version = models.IntegerField(default=1)
 
 
 # Model : Transcription
