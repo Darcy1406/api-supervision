@@ -64,27 +64,55 @@ USE_TZ = True
 TIME_ZONE = 'Indian/Antananarivo'
 
 
-# # Pour autoriser le frontend React (CORS)
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
+# # Pour autoriser le frontend React (CORS) LOCALE
+
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3000",
+# ]
+
+# CORS_ALLOW_CREDENTIALS = True
+
+# CORS_ALLOW_ALL_ORIGINS = True # Pour tester
+
+
+# # # ---- CSRF ----
+# CSRF_COOKIE_HTTPONLY = False  # OBLIGATOIRE pour React
+# CSRF_COOKIE_SAMESITE = "Lax"
+# CSRF_COOKIE_SECURE = False   # OK en local
+
+# CSRF_TRUSTED_ORIGINS = [
+#     "http://localhost:3000",
+# ]
+
+
+# # # ---- Sessions ----
+# SESSION_ENGINE = "django.contrib.sessions.backends.db"
+# SESSION_COOKIE_NAME = "sessionid"
+# SESSION_COOKIE_HTTPONLY = True
+# SESSION_COOKIE_SAMESITE = "Lax"
+# SESSION_COOKIE_SECURE = False
+# SESSION_COOKIE_AGE = 60 * 60 * 24 * 14   # 2 semaines
+# SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+# ***************************************************
+
+# SETTINGS PROD
+ALLOWED_HOSTS = [
+    "192.168.1.236",
+    "localhost",
+    "127.0.0.1"
 ]
-
-CORS_ALLOW_CREDENTIALS = True
-
-CORS_ALLOW_ALL_ORIGINS = True # Pour tester
+CORS_ALLOW_ALL_ORIGINS = True
 
 
-# # ---- CSRF ----
+CSRF_TRUSTED_ORIGINS = [
+    "http://192.168.1.236"
+]
 CSRF_COOKIE_HTTPONLY = False  # OBLIGATOIRE pour React
 CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SECURE = False   # OK en local
 
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-]
 
-
-# # ---- Sessions ----
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 SESSION_COOKIE_NAME = "sessionid"
 SESSION_COOKIE_HTTPONLY = True
@@ -92,6 +120,9 @@ SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SECURE = False
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 14   # 2 semaines
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+
+# **************************************************
 
 
 # ---- Configuration Email ----
@@ -150,12 +181,23 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'supervision',
-        'USER': 'postgres',
+        'USER': 'supervision_user',
         'PASSWORD': 'admin',
         'HOST': 'localhost',
         'PORT': '5432'
     }
 }
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'supervision',
+#         'USER': 'postgres',
+#         'PASSWORD': 'admin',
+#         'HOST': 'localhost',
+#         'PORT': '5432'
+#     }
+# }
 
 
 # Password validation
