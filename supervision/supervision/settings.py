@@ -104,23 +104,29 @@ ALLOWED_HOSTS = [
     "127.0.0.1"
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS_ALLOW_ALL_ORIGINS = True
+
+CORS_ALLOWED_ORIGINS = [
+    "https://192.168.1.236",  # React depuis ton navigateur hôte
+]
+
 CORS_ALLOW_CREDENTIALS = True
 
 
 CSRF_TRUSTED_ORIGINS = [
-    "http://192.168.1.236"
+    "https://192.168.1.236"
 ]
+
 CSRF_COOKIE_HTTPONLY = False  # OBLIGATOIRE pour React
 CSRF_COOKIE_SAMESITE = "Lax"
-CSRF_COOKIE_SECURE = False   # OK en local
+CSRF_COOKIE_SECURE = True   # OK en local
 
 
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 SESSION_COOKIE_NAME = "sessionid"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
-SESSION_COOKIE_SECURE = False
+SESSION_COOKIE_SECURE = True
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 14   # 2 semaines
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
