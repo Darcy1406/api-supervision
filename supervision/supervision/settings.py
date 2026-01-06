@@ -107,6 +107,7 @@ ALLOWED_HOSTS = [
 
 CORS_ALLOWED_ORIGINS = [
     "https://192.168.1.236",  # React depuis ton navigateur hôte
+    "https://192.168.1.236:3000",  
 ]
 
 CORS_ALLOW_ALL_ORIGINS = True
