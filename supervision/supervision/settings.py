@@ -97,7 +97,8 @@ TIME_ZONE = 'Indian/Antananarivo'
 
 # ***************************************************
 
-# SETTINGS PROD
+# SETTINGS PROD (deploiement)
+
 ALLOWED_HOSTS = [
     "192.168.1.236",
     "localhost",
