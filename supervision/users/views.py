@@ -40,23 +40,15 @@ class LoginView(APIView):
         identifiant = request.data.get("identifiant")
         password = request.data.get("password")
 
-        # print('idnetifiant ' + identifiant)
-        # print('password ' + password)
-
         user = authenticate(request, username=identifiant, password=password)
 
         if user is not None:
             login(request, user)
 
-            # TEST : On vérifie si Django voit l'utilisateur tout de suite
-            print(f"Connexion réussie pour : {request.user.identifiant}")
-            print(f"Session ID : {request.session.session_key}")
-            # sessionid cookie sera géré automatiquement par Django
             texte = {"detail": "Connecté", "identifiant": user.identifiant}
             return Response(texte)
-            # return JsonResponse({"detail": "Logged in", "username": user.identifiant})
+        
         return JsonResponse({"error": "Incorrecte: Veuillez verifier vos identifiants et ressayer"})
-    
         # else:
         #     return JsonResponse({"error": "Veuillez valider le reCAPTCHA"})
 
@@ -123,50 +115,85 @@ class UserView(APIView):
             password = request.data.get("password")
             id_user = request.data.get('id_user')
             user = Utilisateur.objects.get(id=id_user)
-
-            if user.fonction.upper() == 'auditeur'.upper(): 
-                Authentification.objects.create_user(
-                    identifiant=identifiant,
-                    password=password,
-                    utilisateur=user
-                )
-            else:
-                Authentification.objects.create_superuser(
-                    identifiant=identifiant,
-                    password=password,
-                    utilisateur=user
-                )
-
-            # Message à envoyer
-            sujet = "Vos identifiants d'accès"
-            message = f"""
-                            Bonjour,
-
-                            Votre compte a été créé avec succès.
-
-                            Voici vos informations de connexion :
-
-                            Identifiant : {identifiant}
-                            Mot de passe : {password}
-
-                            Vous pouvez maintenant vous connecter à la plateforme.
-
-                            Cordialement,
-                            L'équipe technique.
-                        """
-
-            try:
-                send_mail(
-                    sujet,
-                    message,
-                    None,             # utilise DEFAULT_FROM_EMAIL
-                    [email],
-                    fail_silently=False,
-                )
-                return JsonResponse({"succes": "L'utilisateur peut maintenant acceder au système"})
             
-            except Exception as e:
-                return Response({"error": str(e)})
+            if user.fonction.upper() == 'auditeur'.upper(): 
+                # Message à envoyer
+                sujet = "Vos identifiants d'accès"
+                message = f"""
+                                Bonjour,
+
+                                Votre compte a été créé avec succès.
+
+                                Voici vos informations de connexion :
+
+                                Identifiant : {identifiant}
+                                Mot de passe : {password}
+
+                                Vous pouvez maintenant vous connecter à la plateforme.
+
+                                Cordialement,
+                                L'équipe technique.
+                            """
+
+                try:
+                    
+                    send_mail(
+                        sujet,
+                        message,
+                        None,             # utilise DEFAULT_FROM_EMAIL
+                        [email],
+                        fail_silently=False,
+                    )
+
+                    Authentification.objects.create_user(
+                    identifiant=identifiant,
+                    password=password,
+                    utilisateur=user
+                    )
+                    return JsonResponse({"succes": "L'utilisateur peut maintenant acceder au système"})
+                
+                except Exception as e:
+                    return Response({"error": str(e)})
+            else:
+                # Message à envoyer
+                sujet = "Vos identifiants d'accès"
+                message = f"""
+                                Bonjour,
+
+                                Votre compte a été créé avec succès.
+
+                                Voici vos informations de connexion :
+
+                                Identifiant : {identifiant}
+                                Mot de passe : {password}
+
+                                Vous pouvez maintenant vous connecter à la plateforme.
+
+                                Cordialement,
+                                L'équipe technique.
+                            """
+
+                try:
+                    
+                    send_mail(
+                        sujet,
+                        message,
+                        None,             # utilise DEFAULT_FROM_EMAIL
+                        [email],
+                        fail_silently=False,
+                    )
+
+                    Authentification.objects.create_superuser(
+                    identifiant=identifiant,
+                    password=password,
+                    utilisateur=user
+                    )
+
+                    return JsonResponse({"succes": "L'utilisateur peut maintenant acceder au système"})
+                
+                except Exception as e:
+                    return Response({"error": str(e)})
+                
 
         # Script : lister tous les utilisateurs (dans l'interface admin)
         if request.data.get('action') == 'lister_tous_les_utilisateurs':

@@ -20,7 +20,7 @@ from datetime import date
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Max
 from fpdf import FPDF
-from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 
 
 # Create your views here.
@@ -123,6 +123,11 @@ class ExerciceView(APIView):
     def get(self, request):
         exercices = Exercice.objects.all().values('id', 'annee').order_by('-id')
         return JsonResponse(list(exercices), safe=False)
+    
+    def delete(self, request):
+        exercice = Exercice.objects.get(id=request.data.get('id'))
+        exercice.delete()
+        return JsonResponse({'succes': 'Exercice supprimé avec succès'})
 
 
 # Liaison piece - compte
@@ -148,9 +153,13 @@ class PieceCompteView(APIView):
         # Filtrer les liaisons par type de piece
         elif request.data.get("action") == "filtrer_liaison":
            
-            piece_et_compte = PieceCompte.objects.filter(piece=Piece.objects.get(nom_piece=request.data.get('piece'))).select_related('compte').distinct().values('compte__numero', 'nature')
+            try:
+                piece_et_compte = PieceCompte.objects.filter(piece=Piece.objects.get(nom_piece=request.data.get('piece'))).select_related('compte').distinct().values('compte__numero', 'nature')
 
-            return JsonResponse(list(piece_et_compte), safe=False)
+                return JsonResponse(list(piece_et_compte), safe=False)
+            except:
+                return JsonResponse([], safe=False)
+            
     
 
     # Requete PUT (modifier une liaison entre une piece et un compte)
@@ -195,7 +204,6 @@ class DocumentView(APIView):
             exercice = request.data.get("exercice")
             mois = request.data.get("mois")
             info_supp_nouveau = request.data.get("info_supp")
-            # Récupération de la pièce et du poste comptable
             poste_comptable = Poste_comptable.objects.get(nom_poste=poste_comptable_nom)
             piece = Piece.objects.get(nom_piece=piece_nom)
             # Chercher la dernière version du document existant avec le même info_supp
@@ -210,11 +218,9 @@ class DocumentView(APIView):
                 if len(doc.nom_fichier.split(", ")) > 1 and doc.nom_fichier.split(", ")[1] == info_supp_nouveau
             ]
             if documents_meme_info:
-                # Récupérer la version max
                 version = max(doc.version for doc in documents_meme_info) + 1
             else:
                 version = 1
-            # Créer le nouveau document avec la version correcte
             document = Document(
                 nom_fichier=f"{request.data.get('nom_fichier')}, {info_supp_nouveau}",
                 type=request.data.get("type_fichier"),
@@ -821,7 +827,7 @@ class CompteView(APIView):
 
 
 # Anomalie
-class AnomalieView(APIView):
+class AnomalieView(APIView):    
     permission_classes = [IsAuthenticated]
 
     # Requete POST

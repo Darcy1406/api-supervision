@@ -3,7 +3,6 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 
 # Create your models here.
-
 # Model : Zone
 class Zone(models.Model):
     nom_zone = models.CharField(max_length=50)

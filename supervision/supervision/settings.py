@@ -44,9 +44,9 @@ INSTALLED_APPS = [
     'evenement.apps.EvenementConfig',
     'corsheaders',
     'rest_framework',
-    'django_extensions',
 ]
 
+    # 'django_extensions',
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # doit être en haut
     'django.middleware.security.SecurityMiddleware',
@@ -67,70 +67,70 @@ TIME_ZONE = 'Indian/Antananarivo'
 
 # # Pour autoriser le frontend React (CORS) LOCALE
 
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",
-# ]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+]
 
-# CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_CREDENTIALS = True
 
-# CORS_ALLOW_ALL_ORIGINS = True # Pour tester
-
-
-# # # ---- CSRF ----
-# CSRF_COOKIE_HTTPONLY = False  # OBLIGATOIRE pour React
-# CSRF_COOKIE_SAMESITE = "Lax"
-# CSRF_COOKIE_SECURE = False   # OK en local
-
-# CSRF_TRUSTED_ORIGINS = [
-#     "http://localhost:3000",
-# ]
+CORS_ALLOW_ALL_ORIGINS = True # Pour tester
 
 
-# # # ---- Sessions ----
-# SESSION_ENGINE = "django.contrib.sessions.backends.db"
-# SESSION_COOKIE_NAME = "sessionid"
-# SESSION_COOKIE_HTTPONLY = True
-# SESSION_COOKIE_SAMESITE = "Lax"
-# SESSION_COOKIE_SECURE = False
-# SESSION_COOKIE_AGE = 60 * 60 * 24 * 14   # 2 semaines
-# SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+# # ---- CSRF ----
+CSRF_COOKIE_HTTPONLY = False  # OBLIGATOIRE pour React
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = False   # OK en local
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+]
+
+
+# # ---- Sessions ----
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+SESSION_COOKIE_NAME = "sessionid"
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SECURE = False
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 14   # 2 semaines
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 # ***************************************************
 
 # SETTINGS PROD (deploiement)
 
-ALLOWED_HOSTS = [
-    "192.168.1.236",
-    "localhost",
-    "127.0.0.1"
-]
+# ALLOWED_HOSTS = [
+#     "192.168.1.236",
+#     "localhost",
+#     "127.0.0.1"
+# ]
 
 
-CORS_ALLOWED_ORIGINS = [
-    "https://192.168.1.236",  # React depuis ton navigateur hôte
-    "https://192.168.1.236:3000",  
-]
+# CORS_ALLOWED_ORIGINS = [
+#     "https://192.168.1.236",  # React depuis ton navigateur hôte
+#     "https://192.168.1.236:3000",  
+# ]
 
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
-
-
-CSRF_TRUSTED_ORIGINS = [
-    "https://192.168.1.236"
-]
-
-CSRF_COOKIE_HTTPONLY = False  # OBLIGATOIRE pour React
-CSRF_COOKIE_SAMESITE = "Lax"
-CSRF_COOKIE_SECURE = True   # OK en local
+# CORS_ALLOW_ALL_ORIGINS = True
+# CORS_ALLOW_CREDENTIALS = True
 
 
-SESSION_ENGINE = "django.contrib.sessions.backends.db"
-SESSION_COOKIE_NAME = "sessionid"
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = "Lax"
-SESSION_COOKIE_SECURE = True
-SESSION_COOKIE_AGE = 60 * 60 * 24 * 14   # 2 semaines
-SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+# CSRF_TRUSTED_ORIGINS = [
+#     "https://192.168.1.236"
+# ]
+
+# CSRF_COOKIE_HTTPONLY = False  # OBLIGATOIRE pour React
+# CSRF_COOKIE_SAMESITE = "Lax"
+# CSRF_COOKIE_SECURE = True   # OK en local
+
+
+# SESSION_ENGINE = "django.contrib.sessions.backends.db"
+# SESSION_COOKIE_NAME = "sessionid"
+# SESSION_COOKIE_HTTPONLY = True
+# SESSION_COOKIE_SAMESITE = "Lax"
+# SESSION_COOKIE_SECURE = True
+# SESSION_COOKIE_AGE = 60 * 60 * 24 * 14   # 2 semaines
+# SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 
 # **************************************************

@@ -18,6 +18,7 @@ urlpatterns = [
     # Url - Exercice
     path('exercice/create', views.ExerciceView.as_view(), name='creer_exercice'),
     path('exercice/get', views.ExerciceView.as_view(), name='liste_exercices'),
+    path('exercice/delete', views.ExerciceView.as_view(), name='supprimer_exercice'),
 
     # Url - Document
     path('document/save', views.DocumentView.as_view(), name='save_document'),

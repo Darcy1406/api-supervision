@@ -52,26 +52,6 @@ class Compte(models.Model):
     proprietaire = models.ForeignKey(Proprietaire, on_delete=models.CASCADE, related_name="comptes" , null=True)
 
 
-
-# Model (Vue) : Total_montant_transcription_filtrees
-class Total_montant_transcription_filtrees(models.Model):
-    id = models.IntegerField(primary_key=True)
-    nature = models.CharField(max_length=100)
-    nom_fichier = models.CharField(max_length=200)
-    date_arrivee = models.DateField()
-    mois = models.CharField(max_length=20)
-    exercice = models.CharField(max_length=20)
-    nom_piece = models.CharField(max_length=200)
-    nom_poste = models.CharField(max_length=60)
-    total = models.DecimalField(max_digits=15, decimal_places=2)
-    version = models.IntegerField()
-
-    class Meta:
-        managed = False
-        db_table = 'total_montant_transcription_filtrees'
-
-
-
 # Model : Liste entre Piece - Compte
 class PieceCompte(models.Model):
     piece = models.ForeignKey(Piece, on_delete=models.CASCADE, related_name='liaison_comptes')
@@ -79,7 +59,6 @@ class PieceCompte(models.Model):
     nature = models.CharField(max_length=255, null=True)
     created_at = models.DateField(auto_now_add=True, null=True)
     updated_at = models.DateField(auto_now=True, null=True)
-
 
 
 
@@ -108,3 +87,22 @@ class Correction(models.Model):
     anomalie = models.ForeignKey(Anomalie, on_delete=models.CASCADE, related_name='correction')
     commentaire = models.CharField(max_length=255)
     created_at = models.DateField(auto_now_add=True)
+
+
+
+# Model (vue) : Total_montant_transcription_filtrees
+class Total_montant_transcription_filtrees(models.Model):
+    id = models.IntegerField(primary_key=True)
+    nature = models.CharField(max_length=100)
+    nom_fichier = models.CharField(max_length=200)
+    date_arrivee = models.DateField()
+    mois = models.CharField(max_length=20)
+    exercice = models.CharField(max_length=20)
+    nom_piece = models.CharField(max_length=200)
+    nom_poste = models.CharField(max_length=60)
+    total = models.DecimalField(max_digits=15, decimal_places=2)
+    version = models.IntegerField()
+
+    class Meta:
+        managed = False
+        db_table = 'total_montant_transcription_filtrees'
