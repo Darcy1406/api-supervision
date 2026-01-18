@@ -65,7 +65,7 @@ USE_TZ = True
 TIME_ZONE = 'Indian/Antananarivo'
 
 
-# # Pour autoriser le frontend React (CORS) LOCALE
+# Pour autoriser le frontend React (CORS) LOCALE
 
 # CORS_ALLOWED_ORIGINS = [
 #     "http://localhost:3000",
@@ -97,18 +97,19 @@ TIME_ZONE = 'Indian/Antananarivo'
 
 # ***************************************************
 
+
 # SETTINGS PROD (deploiement)
 
 ALLOWED_HOSTS = [
-    "192.168.1.236",
+    "192.168.0.198",
     "localhost",
     "127.0.0.1"
 ]
 
 
 CORS_ALLOWED_ORIGINS = [
-    "https://192.168.1.236",  # React depuis ton navigateur hôte
-    "https://192.168.1.236:3000",  
+    "https://192.168.0.198",  # React depuis ton navigateur hôte
+    "https://192.168.0.198:3000",  
 ]
 
 CORS_ALLOW_ALL_ORIGINS = True
@@ -116,7 +117,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://192.168.1.236"
+    "https://192.168.0.198"
 ]
 
 CSRF_COOKIE_HTTPONLY = False  # OBLIGATOIRE pour React
@@ -131,7 +132,6 @@ SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SECURE = True
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 14   # 2 semaines
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
-
 
 # **************************************************
 
@@ -188,27 +188,35 @@ WSGI_APPLICATION = 'supervision.wsgi.application'
 #     }
 # }
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'supervision',
-        'USER': 'supervision_user',
-        'PASSWORD': 'passwordfort',
-        'HOST': 'localhost',
-        'PORT': '5432'
-    }
-}
+# CONFIGURATION BASE DE DONNEES PROD (DEPLOIEMENT)
 
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'django.db.backends.postgresql',
 #         'NAME': 'supervision',
-#         'USER': 'postgres',
-#         'PASSWORD': 'admin',
+#         'USER': 'supervision_user',
+#         'PASSWORD': 'passwordfort',
 #         'HOST': 'localhost',
 #         'PORT': '5432'
 #     }
 # }
+
+# **** **** **** **** ****
+
+# CONFIGURATION BASE DE DONNEES DEV (LOCALE)
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'supervision',
+        'USER': 'postgres',
+        'PASSWORD': 'admin',
+        'HOST': 'localhost',
+        'PORT': '5432'
+    }
+}
+
+# **** **** **** **** ****
 
 
 # Password validation
