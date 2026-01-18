@@ -44,9 +44,9 @@ INSTALLED_APPS = [
     'evenement.apps.EvenementConfig',
     'corsheaders',
     'rest_framework',
+    'django_extensions',
 ]
 
-    # 'django_extensions',
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # doit être en haut
     'django.middleware.security.SecurityMiddleware',
@@ -112,8 +112,8 @@ CORS_ALLOWED_ORIGINS = [
     "https://192.168.0.198:3000",  
 ]
 
+# CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
 
 
 CSRF_TRUSTED_ORIGINS = [
