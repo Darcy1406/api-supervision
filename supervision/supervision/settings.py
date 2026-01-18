@@ -190,21 +190,6 @@ WSGI_APPLICATION = 'supervision.wsgi.application'
 
 # CONFIGURATION BASE DE DONNEES PROD (DEPLOIEMENT)
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'supervision',
-#         'USER': 'supervision_user',
-#         'PASSWORD': 'passwordfort',
-#         'HOST': 'localhost',
-#         'PORT': '5432'
-#     }
-# }
-
-# **** **** **** **** ****
-
-# CONFIGURATION BASE DE DONNEES DEV (LOCALE)
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -215,6 +200,21 @@ DATABASES = {
         'PORT': '5432'
     }
 }
+
+# **** **** **** **** ****
+
+# CONFIGURATION BASE DE DONNEES DEV (LOCALE)
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'supervision',
+#         'USER': 'postgres',
+#         'PASSWORD': 'admin',
+#         'HOST': 'localhost',
+#         'PORT': '5432'
+#     }
+# }
 
 # **** **** **** **** ****
 
