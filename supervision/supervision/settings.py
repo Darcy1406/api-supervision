@@ -101,15 +101,15 @@ TIME_ZONE = 'Indian/Antananarivo'
 # SETTINGS PROD (deploiement)
 
 ALLOWED_HOSTS = [
-    "192.168.0.198",
+    "192.168.0.199",
     "localhost",
     "127.0.0.1"
 ]
 
 
 CORS_ALLOWED_ORIGINS = [
-    "https://192.168.0.198",  # React depuis ton navigateur hôte
-    "https://192.168.0.198:3000",  
+    "https://192.168.0.199",  # React depuis ton navigateur hôte
+    "https://192.168.0.199:3000",  
 ]
 
 # CORS_ALLOW_CREDENTIALS = True
@@ -117,7 +117,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://192.168.0.198"
+    "https://192.168.0.199"
 ]
 
 CSRF_COOKIE_HTTPONLY = False  # OBLIGATOIRE pour React
