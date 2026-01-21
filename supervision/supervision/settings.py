@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-(l13^2e3eviq#&_^2%sf5ls^#=!k)gso^7a2&06jolhqe)e9yt'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = []
 
@@ -98,7 +98,7 @@ TIME_ZONE = 'Indian/Antananarivo'
 # ***************************************************
 
 
-# SETTINGS PROD (deploiement)
+#SETTINGS PROD (deploiement)
 
 ALLOWED_HOSTS = [
     "192.168.0.199",
